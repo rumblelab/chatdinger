@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 320px;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 14px;
+        }
+        .status.active {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-buttons {
+            margin-top: 15px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .test-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .test-error {
+            background-color: #dc3545;
+            color: white;
+        }
+        .update-button {
+            background-color: #007bff;
+            color: white;
+        }
+        .github-button {
+            background-color: #333;
+            color: white;
+        }
+        .report-button {
+            background-color: #6f42c1;
+            color: white;
+        }
+        .volume-control {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .volume-control label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .volume-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            border: none;
+        }
+        .selector-info {
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+            padding: 8px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h3>🔊 Claude Sound Notifications</h3>
+        <div style="font-size: 12px; color: #666;">v2.0 - Dynamic Selectors</div>
+    </div>
+    
+    <div class="status active">
+        ✅ Extension Active
+    </div>
+    
+    <div class="status info" id="selectorStatus">
+        🔄 Loading selector info...
+    </div>
+    
+    <div class="test-buttons">
+        <button class="test-success" id="testCompletion">🔔 Test Completion Sound</button>
+        <button class="test-error" id="testError">⚠️ Test Error Sound</button>
+        
+        <div class="volume-control">
+            <label for="volumeSlider">🔊 Volume: <span id="volumeValue">70%</span></label>
+            <input type="range" id="volumeSlider" min="0" max="100" value="70" class="volume-slider">
+        </div>
+        
+        <button class="update-button" id="updateSelectors">🔄 Update Selectors</button>
+        <button class="github-button" id="viewGithub">📂 View Selector Repo</button>
+        <button class="report-button" id="reportIssue">🐛 Report Issue</button>
+    </div>
+    
+    <div class="selector-info" id="selectorDetails">
+        Loading selector information...
+    </div>
+    
+    <div style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
+        Automatically updates selectors from remote database
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

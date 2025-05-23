@@ -1,0 +1,39 @@
+{
+    "manifest_version": 3,
+    "name": "chatDinger",
+    "version": "1.0",
+    "description": "Plays sounds when chat completes generation or encounters errors - with dynamic selector updates",
+    "permissions": [
+      "activeTab",
+      "storage",
+      "offscreen",
+      "tabs"
+    ],
+    "host_permissions": [
+      "https://raw.githubusercontent.com/*",
+      "https://api.github.com/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["*://claude.ai/*"],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Claude Sound Settings"
+    },
+    "icons": {
+      "16": "images/icon16.png"
+    },
+    "web_accessible_resources": [
+        {
+          "resources": ["selectors.json", "sounds/*.mp3"],
+          "matches": ["*://claude.ai/*"]
+        }
+    ]
+  }
