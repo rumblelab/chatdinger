@@ -4,146 +4,252 @@
     <meta charset="utf-8">
     <style>
         body {
-            width: 320px;
+            width: 300px;
+            min-height: 400px;
+            margin: 0;
             padding: 20px;
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
+
         .header {
             text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .setting-group {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
             margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        .status {
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-            text-align: center;
-            font-size: 14px;
-        }
-        .status.active {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        .test-buttons {
-            margin-top: 15px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            margin: 5px 0;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .test-success {
-            background-color: #28a745;
-            color: white;
-        }
-        .test-error {
-            background-color: #dc3545;
-            color: white;
-        }
-        .update-button {
-            background-color: #007bff;
-            color: white;
-        }
-        .github-button {
-            background-color: #333;
-            color: white;
-        }
-        .report-button {
-            background-color: #6f42c1;
-            color: white;
-        }
-        .volume-control {
-            margin: 15px 0;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-        .volume-control label {
+
+        .setting-label {
             display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            font-weight: bold;
+            font-weight: 500;
+            margin-bottom: 10px;
+            font-size: 16px;
         }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.3);
+            transition: 0.4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #10a37f;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
         .volume-slider {
-            width: 100%;
+            flex: 1;
             height: 6px;
             border-radius: 3px;
-            background: #ddd;
+            background: rgba(255, 255, 255, 0.3);
             outline: none;
             -webkit-appearance: none;
         }
+
         .volume-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
-            background: #007bff;
+            background: white;
             cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+
         .volume-slider::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
-            background: #007bff;
+            background: white;
             cursor: pointer;
             border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .selector-info {
-            font-size: 11px;
-            color: #666;
+
+        .volume-value {
+            font-weight: 600;
+            min-width: 35px;
+            text-align: center;
+        }
+
+        .sound-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .sound-select:focus {
+            background: white;
+            box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.3);
+        }
+
+        .test-button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
             margin-top: 10px;
-            padding: 8px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
+        }
+
+        .test-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .test-button:active {
+            transform: translateY(0);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            opacity: 0.7;
+            font-size: 12px;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: rgba(16, 163, 127, 0.2);
+            border: 1px solid rgba(16, 163, 127, 0.4);
+        }
+
+        .status-error {
+            background: rgba(220, 38, 38, 0.2);
+            border: 1px solid rgba(220, 38, 38, 0.4);
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h3>🔊 Claude Sound Notifications</h3>
-        <div style="font-size: 12px; color: #666;">v2.0 - Dynamic Selectors</div>
+        <h1>🔊 Chat Dinger</h1>
+        <p>Notification settings</p>
     </div>
-    
-    <div class="status active">
-        ✅ Extension Active
+    <div class="setting-group">
+        <label class="setting-label">
+            Enable notifications
+        </label>
+        <label class="toggle-switch">
+            <input type="checkbox" id="enabled-toggle" checked>
+            <span class="slider"></span>
+        </label>
     </div>
-    
-    <div class="status info" id="selectorStatus">
-        🔄 Loading selector info...
-    </div>
-    
-    <div class="test-buttons">
-        <button class="test-success" id="testCompletion">🔔 Test Completion Sound</button>
-        <button class="test-error" id="testError">⚠️ Test Error Sound</button>
-        
-        <div class="volume-control">
-            <label for="volumeSlider">🔊 Volume: <span id="volumeValue">70%</span></label>
-            <input type="range" id="volumeSlider" min="0" max="100" value="70" class="volume-slider">
+
+    <div class="setting-group">
+        <label class="setting-label" for="volume-slider">
+            Volume
+        </label>
+        <div class="volume-container">
+            <span>🔈</span>
+            <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="70">
+            <span class="volume-value" id="volume-value">70%</span>
         </div>
-        
-        <button class="update-button" id="updateSelectors">🔄 Update Selectors</button>
-        <button class="github-button" id="viewGithub">📂 View Selector Repo</button>
-        <button class="report-button" id="reportIssue">🐛 Report Issue</button>
     </div>
-    
-    <div class="selector-info" id="selectorDetails">
-        Loading selector information...
+
+    <div class="setting-group">
+        <label class="setting-label" for="sound-select">
+            Notification sound
+        </label>
+        <select id="sound-select" class="sound-select">
+            <option value="alert.mp3">Brown Alert</option>
+            <option value="boop.mp3">Boop</option>
+            <option value="ding.mp3">Ding</option>
+            <option value="hmm.mp3">Hmm</option>
+        </select>
+        <button id="test-sound" class="test-button">🎵 Test Sound</button>
     </div>
-    
-    <div style="margin-top: 15px; font-size: 12px; color: #666; text-align: center;">
-        Automatically updates selectors from remote database
+    <div id="status-message" class="status-message hidden"></div>
+    <div class="footer">
+        <p>Settings saved automagically</p>
     </div>
-    
+
     <script src="popup.js"></script>
 </body>
 </html>

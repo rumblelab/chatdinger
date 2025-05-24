@@ -1,39 +1,52 @@
 {
     "manifest_version": 3,
-    "name": "chatDinger",
-    "version": "1.0",
-    "description": "Plays sounds when chat completes generation or encounters errors - with dynamic selector updates",
+    "name": "Chat Dinger",
+    "version": "2.0",
+    "description": "Plays notification sounds when ChatGPT and Claude finish generating responses.",
     "permissions": [
-      "activeTab",
-      "storage",
-      "offscreen",
-      "tabs"
+      "storage",    
+      "scripting",
+      "activeTab"
     ],
     "host_permissions": [
-      "https://raw.githubusercontent.com/*",
-      "https://api.github.com/*"
-    ],
-    "content_scripts": [
-      {
-        "matches": ["*://claude.ai/*"],
-        "js": ["content.js"],
-        "run_at": "document_end"
-      }
+      "*://chat.openai.com/*",
+      "*://chatgpt.com/*",
+      "*://claude.ai/*"
     ],
     "background": {
       "service_worker": "background.js"
     },
     "action": {
       "default_popup": "popup.html",
-      "default_title": "Claude Sound Settings"
+      "default_title": "Chat Dinger Settings"
     },
+    "content_scripts": [
+      {
+        "matches": [
+          "*://chat.openai.com/*", 
+          "*://chatgpt.com/*",
+          "*://claude.ai/*"
+        ],
+        "js": ["content.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "sounds/alert.mp3",
+          "sounds/boop.mp3",
+          "sounds/ding.mp3",
+          "sounds/hmm.mp3"
+        ],
+        "matches": [
+          "*://chatgpt.com/*", 
+          "*://chat.openai.com/*",
+          "*://claude.ai/*"
+        ]
+      }
+    ],
     "icons": {
       "16": "images/icon16.png"
-    },
-    "web_accessible_resources": [
-        {
-          "resources": ["selectors.json", "sounds/*.mp3"],
-          "matches": ["*://claude.ai/*"]
-        }
-    ]
-  }
+    }
+}

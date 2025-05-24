@@ -1,164 +1,161 @@
-document.addEventListener('DOMContentLoaded', async function() {
-    const testCompletionButton = document.getElementById('testCompletion');
-    const testErrorButton = document.getElementById('testError');
-    const updateSelectorsButton = document.getElementById('updateSelectors');
-    const viewGithubButton = document.getElementById('viewGithub');
-    const reportIssueButton = document.getElementById('reportIssue');
-    const volumeSlider = document.getElementById('volumeSlider');
-    const volumeValue = document.getElementById('volumeValue');
-    const selectorStatus = document.getElementById('selectorStatus');
-    const selectorDetails = document.getElementById('selectorDetails');
-  
-    // Load current volume setting
-    async function loadVolume() {
-      try {
-        const response = await chrome.runtime.sendMessage({ action: 'getVolume' });
-        const volume = Math.round(response.volume * 100);
-        volumeSlider.value = volume;
-        volumeValue.textContent = volume + '%';
-      } catch (error) {
-        console.error('Error loading volume:', error);
-      }
-    }
-  
-    // Handle volume slider changes
-    volumeSlider.addEventListener('input', async function() {
-      const volume = parseInt(this.value);
-      volumeValue.textContent = volume + '%';
-      
-      try {
-        await chrome.runtime.sendMessage({ 
-          action: 'setVolume', 
-          volume: volume / 100 
-        });
-        
-        // Also update the offscreen document immediately
-        await chrome.runtime.sendMessage({
-          action: 'playAudio',
-          type: 'setVolume',
-          volume: volume / 100
-        });
-      } catch (error) {
-        console.error('Error setting volume:', error);
-      }
-    });
-  
-    // Load selector information
-    async function loadSelectorInfo() {
-      try {
-        const response = await chrome.runtime.sendMessage({ action: 'getSelectors' });
-        const selectors = response.selectors;
-        
-        if (selectors) {
-          selectorStatus.innerHTML = `📊 Selectors v${selectors.version}`;
-          
-          const updateDate = selectors.lastUpdated ? 
-            new Date(selectors.lastUpdated).toLocaleDateString() : 
-            'Unknown';
-          
-          const stopButtonCount = selectors.selectors.generation.stopButton.length;
-          const loadingCount = selectors.selectors.generation.loading.length;
-          const errorCount = selectors.selectors.error.length;
-          
-          selectorDetails.innerHTML = `
-            <strong>Version:</strong> ${selectors.version}<br>
-            <strong>Updated:</strong> ${updateDate}<br>
-            <strong>Stop Selectors:</strong> ${stopButtonCount}<br>
-            <strong>Loading Selectors:</strong> ${loadingCount}<br>
-            <strong>Error Selectors:</strong> ${errorCount}
-          `;
-        } else {
-          selectorStatus.innerHTML = '❌ No selectors loaded';
-          selectorDetails.innerHTML = 'Failed to load selector information';
+// Popup script for ChatGPT Alert settings
+console.log('ChatGPT Alert: Popup loaded');
+
+// DOM elements
+const enabledToggle = document.getElementById('enabled-toggle');
+const volumeSlider = document.getElementById('volume-slider');
+const volumeValue = document.getElementById('volume-value');
+const soundSelect = document.getElementById('sound-select');
+const testSoundBtn = document.getElementById('test-sound');
+const statusMessage = document.getElementById('status-message');
+
+// Default settings
+const defaultSettings = {
+    enabled: true,
+    volume: 0.7,
+    selectedSound: 'alert.mp3'
+};
+
+// Current settings
+let currentSettings = { ...defaultSettings };
+
+// Show status message
+function showStatus(message, isError = false) {
+    statusMessage.textContent = message;
+    statusMessage.className = `status-message ${isError ? 'status-error' : 'status-success'}`;
+    statusMessage.classList.remove('hidden');
+    
+    setTimeout(() => {
+        statusMessage.classList.add('hidden');
+    }, 3000);
+}
+
+// Load settings from storage
+async function loadSettings() {
+    try {
+        const result = await chrome.storage.local.get(['chatAlertSettings']);
+        if (result.chatAlertSettings) {
+            currentSettings = { ...defaultSettings, ...result.chatAlertSettings };
         }
-      } catch (error) {
-        console.error('Error loading selector info:', error);
-        selectorStatus.innerHTML = '❌ Error loading selectors';
-        selectorDetails.innerHTML = 'Error: ' + error.message;
-      }
+        updateUI();
+        console.log('Settings loaded:', currentSettings);
+    } catch (error) {
+        console.error('Failed to load settings:', error);
+        showStatus('Failed to load settings', true);
     }
-  
-    // Test completion sound
-    testCompletionButton.addEventListener('click', async function() {
-      try {
-        await chrome.runtime.sendMessage({ action: 'playCompletionSound' });
-        testCompletionButton.innerHTML = '✅ Played!';
-        setTimeout(() => {
-          testCompletionButton.innerHTML = '🔔 Test Completion Sound';
-        }, 2000);
-      } catch (error) {
-        console.error('Error playing completion sound:', error);
-      }
-    });
-  
-    // Test error sound
-    testErrorButton.addEventListener('click', async function() {
-      try {
-        await chrome.runtime.sendMessage({ action: 'playErrorSound' });
-        testErrorButton.innerHTML = '✅ Played!';
-        setTimeout(() => {
-          testErrorButton.innerHTML = '⚠️ Test Error Sound';
-        }, 2000);
-      } catch (error) {
-        console.error('Error playing error sound:', error);
-      }
-    });
-  
-    // Update selectors
-    updateSelectorsButton.addEventListener('click', async function() {
-      updateSelectorsButton.innerHTML = '🔄 Updating...';
-      updateSelectorsButton.disabled = true;
-      
-      try {
-        await chrome.runtime.sendMessage({ action: 'updateSelectors' });
-        updateSelectorsButton.innerHTML = '✅ Updated!';
-        await loadSelectorInfo(); // Refresh the display
+}
+
+// Save settings to storage
+async function saveSettings() {
+    try {
+        await chrome.storage.local.set({ chatAlertSettings: currentSettings });
+        console.log('Settings saved:', currentSettings);
         
-        setTimeout(() => {
-          updateSelectorsButton.innerHTML = '🔄 Update Selectors';
-          updateSelectorsButton.disabled = false;
-        }, 2000);
-      } catch (error) {
-        console.error('Error updating selectors:', error);
-        updateSelectorsButton.innerHTML = '❌ Failed';
-        setTimeout(() => {
-          updateSelectorsButton.innerHTML = '🔄 Update Selectors';
-          updateSelectorsButton.disabled = false;
-        }, 2000);
-      }
-    });
-  
-    // View GitHub repository
-    viewGithubButton.addEventListener('click', function() {
-      chrome.tabs.create({ 
-        url: 'https://github.com/claude-sound-extension/selectors'
-      });
-    });
-  
-    // Report an issue
-    reportIssueButton.addEventListener('click', async function() {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const response = await chrome.runtime.sendMessage({ 
-          action: 'reportIssue',
-          issue: 'Selectors not working correctly',
-          url: tab.url,
-          userAgent: navigator.userAgent
+        // Notify content scripts about settings change
+        const tabs = await chrome.tabs.query({ url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] });
+        for (const tab of tabs) {
+            try {
+                await chrome.tabs.sendMessage(tab.id, {
+                    action: 'settingsUpdated',
+                    settings: currentSettings
+                });
+            } catch (e) {
+                // Tab might not have content script, ignore
+            }
+        }
+        
+        showStatus('Settings saved!');
+    } catch (error) {
+        console.error('Failed to save settings:', error);
+        showStatus('Failed to save settings', true);
+    }
+}
+
+// Update UI based on current settings
+function updateUI() {
+    enabledToggle.checked = currentSettings.enabled;
+    volumeSlider.value = Math.round(currentSettings.volume * 100);
+    volumeValue.textContent = Math.round(currentSettings.volume * 100) + '%';
+    soundSelect.value = currentSettings.selectedSound;
+}
+
+// Event listeners
+enabledToggle.addEventListener('change', async () => {
+    currentSettings.enabled = enabledToggle.checked;
+    await saveSettings();
+});
+
+volumeSlider.addEventListener('input', () => {
+    const volume = parseInt(volumeSlider.value) / 100;
+    currentSettings.volume = volume;
+    volumeValue.textContent = volumeSlider.value + '%';
+});
+
+volumeSlider.addEventListener('change', async () => {
+    await saveSettings();
+});
+
+soundSelect.addEventListener('change', async () => {
+    currentSettings.selectedSound = soundSelect.value;
+    await saveSettings();
+});
+
+testSoundBtn.addEventListener('click', async () => {
+    testSoundBtn.textContent = '🎵 Playing...';
+    testSoundBtn.disabled = true;
+    
+    try {
+        // Try to find an active ChatGPT tab to play the sound
+        const tabs = await chrome.tabs.query({ 
+            active: true, 
+            url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] 
         });
         
-        // Create GitHub issue URL with pre-filled data
-        const issueUrl = `${response.issuesUrl}/new?title=${encodeURIComponent(response.issueData.title)}&body=${encodeURIComponent(response.issueData.body)}`;
-        chrome.tabs.create({ url: issueUrl });
-      } catch (error) {
-        console.error('Error creating issue report:', error);
-        // Fallback to just opening issues page
-        chrome.tabs.create({ 
-          url: 'https://github.com/claude-sound-extension/selectors/issues/new'
-        });
-      }
-    });
-  
-    // Initial loads
-    await loadVolume();
-    await loadSelectorInfo();
-  });
+        if (tabs.length > 0) {
+            // Play sound in ChatGPT tab
+            await chrome.tabs.sendMessage(tabs[0].id, {
+                action: 'testSound',
+                soundFile: currentSettings.selectedSound,
+                volume: currentSettings.volume
+            });
+            showStatus('Test sound played!');
+        } else {
+            // No ChatGPT tab, try to play in background
+            await chrome.runtime.sendMessage({
+                action: 'testSound',
+                soundFile: currentSettings.selectedSound,
+                volume: currentSettings.volume
+            });
+            showStatus('Test sound played!');
+        }
+    } catch (error) {
+        console.error('Test sound failed:', error);
+        showStatus('Test sound failed - make sure ChatGPT is open', true);
+    }
+    
+    setTimeout(() => {
+        testSoundBtn.textContent = '🎵 Test Sound';
+        testSoundBtn.disabled = false;
+    }, 1000);
+});
+
+// Check if ChatGPT tabs are open
+async function checkChatGPTTabs() {
+    try {
+        const tabs = await chrome.tabs.query({ url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] });
+        if (tabs.length === 0) {
+            showStatus('Open ChatGPT to enable notifications', false);
+        }
+    } catch (error) {
+        console.error('Failed to check tabs:', error);
+    }
+}
+
+// Initialize popup
+async function init() {
+    await loadSettings();
+    await checkChatGPTTabs();
+}
+
+// Start initialization
+init();
