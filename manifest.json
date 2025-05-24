@@ -37,7 +37,9 @@
           "sounds/alert.mp3",
           "sounds/boop.mp3",
           "sounds/ding.mp3",
-          "sounds/hmm.mp3"
+          "sounds/hmm.mp3",
+          "sounds/default.wav",
+          "sounds/hidden_message.wav"
         ],
         "matches": [
           "*://chatgpt.com/*", 

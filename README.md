@@ -1,2 +1,3 @@
 # chatdinger
 chrome extension that makes chat ding...
+just ask chatgpt how to install a chrome extension from github if you don't know. 

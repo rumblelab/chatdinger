@@ -13,7 +13,7 @@ const statusMessage = document.getElementById('status-message');
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'alert.mp3'
+    selectedSound: 'default.wav'
 };
 
 // Current settings

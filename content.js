@@ -18,7 +18,7 @@ console.log(`Chat Dinger: Detected site: ${SITE}`);
 let settings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'alert.mp3'
+    selectedSound: 'default.wav'
 };
 
 // Audio management

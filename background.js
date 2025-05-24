@@ -11,7 +11,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Play test sound by injecting into active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
-        const soundFile = message.soundFile || 'alert.mp3';
+        const soundFile = message.soundFile || 'default.wav';
         const volume = message.volume || 0.7;
         
         chrome.scripting.executeScript({
