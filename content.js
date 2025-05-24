@@ -18,7 +18,7 @@ console.log(`Chat Dinger: Detected site: ${SITE}`);
 let settings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'default.wav'
+    selectedSound: 'alert.mp3'
 };
 
 // Audio management
@@ -28,6 +28,7 @@ let globalAudioContext = null;
 // ChatGPT monitoring (original approach)
 let chatgptButtonInstance = null;
 let chatgptIsGenerating = false;
+let chatgptFirstGenerationCheck = true; // Flag for first generation
 let canPlayAlertSound = true;
 
 // ChatGPT Observers
@@ -209,11 +210,23 @@ function getChatGPTButtonState(button) {
 function processChatGPTButtonState(buttonElement) {
     const currentState = getChatGPTButtonState(buttonElement);
     
-    console.log(`Chat Dinger: ChatGPT state check - Was generating: ${chatgptIsGenerating}, Now generating: ${currentState.isGenerating}`);
+    console.log(`Chat Dinger: ChatGPT state check - Was generating: ${chatgptIsGenerating}, Now generating: ${currentState.isGenerating}, First check: ${chatgptFirstGenerationCheck}`);
     
-    // Generation just completed
-    if (chatgptIsGenerating && !currentState.isGenerating) {
+    // For first generation in new chat, allow any completion (generation goes from true to false)
+    if (chatgptFirstGenerationCheck && !currentState.isGenerating && chatgptIsGenerating) {
+        console.log('🎉 Chat Dinger: ChatGPT first generation completed!');
         playAlert();
+        chatgptFirstGenerationCheck = false; // Reset flag after first generation
+    }
+    // Normal case: generation just completed
+    else if (!chatgptFirstGenerationCheck && chatgptIsGenerating && !currentState.isGenerating) {
+        console.log('🎉 Chat Dinger: ChatGPT generation completed!');
+        playAlert();
+    }
+    // Reset first generation flag once we see a generating state
+    else if (chatgptFirstGenerationCheck && currentState.isGenerating) {
+        console.log('🔄 Chat Dinger: ChatGPT first generation started');
+        chatgptFirstGenerationCheck = false; // We've seen generation start, no longer first
     }
     
     chatgptIsGenerating = currentState.isGenerating;
@@ -258,6 +271,7 @@ function handleChatGPTButtonRemoved() {
     cleanupChatGPTObservers();
     chatgptButtonInstance = null;
     chatgptIsGenerating = false;
+    chatgptFirstGenerationCheck = true; // Reset for new chat
     observeForChatGPTButton();
 }
 
@@ -272,10 +286,13 @@ function startMonitoringChatGPTButton(button) {
     // Add click listener for audio unlocking
     addChatGPTClickListener(button);
 
+    // Reset first generation flag for new button (new chat)
+    chatgptFirstGenerationCheck = true;
+
     const initialState = getChatGPTButtonState(chatgptButtonInstance);
     chatgptIsGenerating = initialState.isGenerating;
     
-    console.log(`Chat Dinger: Now monitoring ChatGPT button. Initial state - generating: ${chatgptIsGenerating}`);
+    console.log(`Chat Dinger: Now monitoring ChatGPT button. Initial state - generating: ${chatgptIsGenerating}, First generation check: ${chatgptFirstGenerationCheck}`);
 
     // Watch for all types of changes
     chatgptAttributeChangeObserver = new MutationObserver(mutationsList => {

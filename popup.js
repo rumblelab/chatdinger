@@ -13,7 +13,7 @@ const statusMessage = document.getElementById('status-message');
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'default.wav'
+    selectedSound: 'alert.mp3'
 };
 
 // Current settings
@@ -52,7 +52,13 @@ async function saveSettings() {
         console.log('Settings saved:', currentSettings);
         
         // Notify content scripts about settings change
-        const tabs = await chrome.tabs.query({ url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] });
+        const tabs = await chrome.tabs.query({ 
+            url: [
+                "*://chatgpt.com/*", 
+                "*://chat.openai.com/*",
+                "*://claude.ai/*"
+            ] 
+        });
         for (const tab of tabs) {
             try {
                 await chrome.tabs.sendMessage(tab.id, {
@@ -105,10 +111,14 @@ testSoundBtn.addEventListener('click', async () => {
     testSoundBtn.disabled = true;
     
     try {
-        // Try to find an active ChatGPT tab to play the sound
+        // Try to find an active ChatGPT or Claude tab to play the sound
         const tabs = await chrome.tabs.query({ 
             active: true, 
-            url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] 
+            url: [
+                "*://chatgpt.com/*", 
+                "*://chat.openai.com/*",
+                "*://claude.ai/*"
+            ] 
         });
         
         if (tabs.length > 0) {
@@ -130,7 +140,7 @@ testSoundBtn.addEventListener('click', async () => {
         }
     } catch (error) {
         console.error('Test sound failed:', error);
-        showStatus('Test sound failed - make sure ChatGPT is open', true);
+                    showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
     }
     
     setTimeout(() => {
@@ -139,12 +149,18 @@ testSoundBtn.addEventListener('click', async () => {
     }, 1000);
 });
 
-// Check if ChatGPT tabs are open
-async function checkChatGPTTabs() {
+// Check if ChatGPT or Claude tabs are open
+async function checkSupportedTabs() {
     try {
-        const tabs = await chrome.tabs.query({ url: ["*://chatgpt.com/*", "*://chat.openai.com/*"] });
+        const tabs = await chrome.tabs.query({ 
+            url: [
+                "*://chatgpt.com/*", 
+                "*://chat.openai.com/*",
+                "*://claude.ai/*"
+            ] 
+        });
         if (tabs.length === 0) {
-            showStatus('Open ChatGPT to enable notifications', false);
+            showStatus('Open ChatGPT or Claude to enable notifications', false);
         }
     } catch (error) {
         console.error('Failed to check tabs:', error);
@@ -154,7 +170,7 @@ async function checkChatGPTTabs() {
 // Initialize popup
 async function init() {
     await loadSettings();
-    await checkChatGPTTabs();
+    await checkSupportedTabs();
 }
 
 // Start initialization
