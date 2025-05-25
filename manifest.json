@@ -35,11 +35,14 @@
       {
         "resources": [
           "sounds/alert.mp3",
-          "sounds/boop.mp3",
+          "sounds/boop.wav",
           "sounds/ding.mp3",
           "sounds/hmm.mp3",
           "sounds/default.wav",
-          "sounds/hidden_message.wav"
+          "sounds/hidden_message.wav",
+          "sounds/glitch.wav",
+          "sounds/generating.wav",
+          "sounds/cowbell.wav"
         ],
         "matches": [
           "*://chatgpt.com/*", 
@@ -49,6 +52,8 @@
       }
     ],
     "icons": {
-      "16": "images/icon16.png"
+        "16": "images/icon16.png",
+        "48": "images/icon48.png",
+        "128": "images/icon128.png"
     }
 }
