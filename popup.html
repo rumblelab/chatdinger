@@ -3,252 +3,360 @@
 <head>
     <meta charset="utf-8">
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            width: 300px;
-            min-height: 400px;
+            width: 320px;
+            min-height: 480px;
             margin: 0;
-            padding: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+            font-family: 'MS Sans Serif', Tahoma, sans-serif;
+            font-size: 11px;
+            background: #c0c0c0;
+            color: #000000;
+            overflow: hidden;
+        }
+
+        .window {
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-bar {
+            background: linear-gradient(90deg, #0000ff 0%, #1084d0 100%);
             color: white;
+            padding: 2px;
+            font-size: 11px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #000040;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 25px;
+        .title-text {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding-left: 4px;
         }
 
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
+        .title-icon {
+            width: 16px;
+            height: 16px;
+            background: #ffff00;
+            border: 1px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
         }
 
-        .header p {
-            margin: 5px 0 0 0;
-            opacity: 0.9;
-            font-size: 14px;
+        .window-controls {
+            display: flex;
+            gap: 2px;
+            padding-right: 2px;
         }
 
-        .setting-group {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .control-btn {
+            width: 16px;
+            height: 14px;
+            background: #c0c0c0;
+            border: 1px outset #c0c0c0;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
 
-        .setting-label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 10px;
-            font-size: 16px;
+        .control-btn:active {
+            border: 1px inset #c0c0c0;
         }
 
-        .toggle-switch {
+        .content {
+            flex: 1;
+            padding: 8px;
+            overflow-y: auto;
+        }
+
+        .group-box {
+            border: 2px inset #c0c0c0;
+            margin-bottom: 8px;
             position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
+            padding: 12px 8px 8px 8px;
         }
 
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
+        .group-title {
+            position: absolute;
+            top: -6px;
+            left: 8px;
+            background: #c0c0c0;
+            padding: 0 4px;
+            font-size: 11px;
+            color: #000000;
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .checkbox {
+            width: 13px;
+            height: 13px;
+            border: 2px inset #c0c0c0;
+            background: #ffffff;
+            position: relative;
+            cursor: pointer;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checkbox.checked {
+            background: #ffffff;
+        }
+
+        .checkbox.checked::before {
+            content: "✓";
+            font-size: 9px;
+            font-weight: bold;
+            color: #000000;
+            line-height: 1;
+        }
+
+        .label {
+            flex: 1;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
         }
 
         .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(255, 255, 255, 0.3);
-            transition: 0.4s;
-            border-radius: 34px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: 0.4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background-color: #10a37f;
-        }
-
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-
-        .volume-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .volume-slider {
             flex: 1;
-            height: 6px;
-            border-radius: 3px;
-            background: rgba(255, 255, 255, 0.3);
-            outline: none;
-            -webkit-appearance: none;
-        }
-
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 20px;
             height: 20px;
-            border-radius: 50%;
-            background: white;
+            background: #ffffff;
+            border: 2px inset #c0c0c0;
+            position: relative;
             cursor: pointer;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        .volume-slider::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: white;
+        .slider-track {
+            position: absolute;
+            top: 8px;
+            left: 2px;
+            right: 2px;
+            height: 2px;
+            background: #000080;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            top: 2px;
+            width: 16px;
+            height: 14px;
+            background: #c0c0c0;
+            border: 1px outset #c0c0c0;
             cursor: pointer;
-            border: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .volume-value {
-            font-weight: 600;
-            min-width: 35px;
-            text-align: center;
-        }
-
-        .sound-select {
-            width: 100%;
-            padding: 12px 16px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            outline: none;
-        }
-
-        .sound-select:focus {
-            background: white;
-            box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.3);
-        }
-
-        .test-button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-top: 10px;
-        }
-
-        .test-button:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: translateY(-1px);
-        }
-
-        .test-button:active {
-            transform: translateY(0);
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            opacity: 0.7;
-            font-size: 12px;
+            pointer-events: none;
         }
 
         .status-message {
-            text-align: center;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            font-weight: 500;
+            background: #ffffff;
+            border: 1px inset #c0c0c0;
+            padding: 4px 8px;
+            font-size: 11px;
         }
 
         .status-success {
-            background: rgba(16, 163, 127, 0.2);
-            border: 1px solid rgba(16, 163, 127, 0.4);
+            color: #000080;
         }
 
         .status-error {
-            background: rgba(220, 38, 38, 0.2);
-            border: 1px solid rgba(220, 38, 38, 0.4);
+            color: #800000;
+        }
+
+        .volume-display {
+            font-size: 11px;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        .dropdown {
+            width: 100%;
+            height: 21px;
+            background: #ffffff;
+            border: 2px inset #c0c0c0;
+            font-size: 11px;
+            font-family: 'MS Sans Serif', Tahoma, sans-serif;
+            cursor: pointer;
+            padding: 2px 20px 2px 4px;
+            appearance: none;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=');
+            background-repeat: no-repeat;
+            background-position: right 4px center;
+        }
+
+        .dropdown:focus {
+            outline: 1px dotted #000000;
+            outline-offset: -2px;
+        }
+
+        .button {
+            height: 23px;
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            font-size: 11px;
+            font-family: 'MS Sans Serif', Tahoma, sans-serif;
+            cursor: pointer;
+            padding: 0 12px;
+            margin-top: 6px;
+        }
+
+        .button:active {
+            border: 2px inset #c0c0c0;
+        }
+
+        .button:focus {
+            outline: 1px dotted #000000;
+            outline-offset: -4px;
+        }
+
+        .status-bar {
+            height: 20px;
+            background: #c0c0c0;
+            border-top: 1px solid #808080;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            font-size: 11px;
+        }
+
+        .status-panel {
+            background: #ffffff;
+            border: 1px inset #c0c0c0;
+            padding: 2px 4px;
+            margin-right: 4px;
+            font-size: 10px;
         }
 
         .hidden {
             display: none;
         }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 16px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #c0c0c0;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0a0a0;
+        }
+
+        ::-webkit-scrollbar-button {
+            background: #c0c0c0;
+            border: 1px outset #c0c0c0;
+            height: 16px;
+        }
+
+        ::-webkit-scrollbar-button:active {
+            border: 1px inset #c0c0c0;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🔊 Chat Dinger</h1>
-        <p>Notification settings</p>
-    </div>
-    <div class="setting-group">
-        <label class="setting-label">
-            Enable notifications
-        </label>
-        <label class="toggle-switch">
-            <input type="checkbox" id="enabled-toggle" checked>
-            <span class="slider"></span>
-        </label>
-    </div>
-
-    <div class="setting-group">
-        <label class="setting-label" for="volume-slider">
-            Volume
-        </label>
-        <div class="volume-container">
-            <span>🔈</span>
-            <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="70">
-            <span class="volume-value" id="volume-value">70%</span>
+    <div class="window">
+        <div class="title-bar">
+            <div class="title-text">
+                <div class="title-icon">🔊</div>
+                <span>Notification Settings</span>
+            </div>
+            <div class="window-controls">
+                <div class="control-btn">_</div>
+                <div class="control-btn">□</div>
+                <div class="control-btn">×</div>
+            </div>
         </div>
-    </div>
 
-    <div class="setting-group">
-        <label class="setting-label" for="sound-select">
-            Notification sound
-        </label>
-        <select id="sound-select" class="sound-select">
-            <option value="default.wav">Default</option>
-            <option value="alert.mp3">Brown Alert</option>
-            <option value="boop.wav">Boop</option>
-            <option value="ding.mp3">Ding</option>
-            <option value="hmm.mp3">Hmm</option>
-        </select>
-        <button id="test-sound" class="test-button">🎵 Test Sound</button>
-    </div>
-    <div id="status-message" class="status-message hidden"></div>
-    <div class="footer">
-        <p>Settings saved automagically</p>
+        <div class="content">
+            <div class="group-box">
+                <div class="group-title">General</div>
+                <div class="setting-row">
+                    <div class="checkbox checked" id="enabled-toggle"></div>
+                    <label class="label" for="enabled-toggle">Enable sound notifications</label>
+                </div>
+            </div>
+
+            <div class="group-box">
+                <div class="group-title">Volume</div>
+                <div class="slider-container">
+                    <span>Low</span>
+                    <div class="slider" id="volume-slider-container">
+                        <div class="slider-track"></div>
+                        <div class="slider-thumb" id="volume-thumb" style="left: 70%;"></div>
+                        <input type="range" id="volume-slider" min="0" max="100" value="70" style="opacity: 0; position: absolute; width: 100%; height: 100%; margin: 0; cursor: pointer;">
+                    </div>
+                    <span>High</span>
+                </div>
+                <div class="setting-row" style="justify-content: center; margin-top: 8px;">
+                    <div class="volume-display" id="volume-value">Volume: 70%</div>
+                </div>
+            </div>
+
+            <div class="group-box">
+                <div class="group-title">Sound scheme</div>
+                <div class="setting-row">
+                    <label class="label">Event:</label>
+                </div>
+                <div class="setting-row">
+                    <select class="dropdown" id="sound-select">
+                        <option value="default.wav">Default</option>
+                        <option value="alert.mp3">Brown Alert</option>
+                        <option value="boop.wav">Boop</option>
+                        <option value="ding.mp3">Ding</option>
+                        <option value="hmm.mp3">Hmm</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <button class="button" id="test-sound">Test</button>
+                </div>
+            </div>
+
+            <div id="status-message" class="status-panel hidden" style="margin: 8px 0; text-align: center;"></div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-panel hidden" id="status-panel">Ready</div>
+            <span id="status-text"><a href="https://chatdinger.com">chatdinger.com</a></span>
+        </div>
     </div>
 
     <script src="popup.js"></script>

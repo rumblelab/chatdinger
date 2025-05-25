@@ -8,6 +8,7 @@ const volumeValue = document.getElementById('volume-value');
 const soundSelect = document.getElementById('sound-select');
 const testSoundBtn = document.getElementById('test-sound');
 const statusMessage = document.getElementById('status-message');
+const volumeThumb = document.getElementById('volume-thumb');
 
 // Default settings
 const defaultSettings = {
@@ -33,9 +34,11 @@ function showStatus(message, isError = false) {
 // Load settings from storage
 async function loadSettings() {
     try {
-        const result = await chrome.storage.local.get(['chatAlertSettings']);
-        if (result.chatAlertSettings) {
-            currentSettings = { ...defaultSettings, ...result.chatAlertSettings };
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            const result = await chrome.storage.local.get(['chatAlertSettings']);
+            if (result.chatAlertSettings) {
+                currentSettings = { ...defaultSettings, ...result.chatAlertSettings };
+            }
         }
         updateUI();
         console.log('Settings loaded:', currentSettings);
@@ -48,28 +51,29 @@ async function loadSettings() {
 // Save settings to storage
 async function saveSettings() {
     try {
-        await chrome.storage.local.set({ chatAlertSettings: currentSettings });
-        console.log('Settings saved:', currentSettings);
-        
-        // Notify content scripts about settings change
-        const tabs = await chrome.tabs.query({ 
-            url: [
-                "*://chatgpt.com/*", 
-                "*://chat.openai.com/*",
-                "*://claude.ai/*"
-            ] 
-        });
-        for (const tab of tabs) {
-            try {
-                await chrome.tabs.sendMessage(tab.id, {
-                    action: 'settingsUpdated',
-                    settings: currentSettings
-                });
-            } catch (e) {
-                // Tab might not have content script, ignore
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            await chrome.storage.local.set({ chatAlertSettings: currentSettings });
+            console.log('Settings saved:', currentSettings);
+            
+            // Notify content scripts about settings change
+            const tabs = await chrome.tabs.query({ 
+                url: [
+                    "*://chatgpt.com/*", 
+                    "*://chat.openai.com/*",
+                    "*://claude.ai/*"
+                ] 
+            });
+            for (const tab of tabs) {
+                try {
+                    await chrome.tabs.sendMessage(tab.id, {
+                        action: 'settingsUpdated',
+                        settings: currentSettings
+                    });
+                } catch (e) {
+                    // Tab might not have content script, ignore
+                }
             }
         }
-        
         showStatus('Settings saved!');
     } catch (error) {
         console.error('Failed to save settings:', error);
@@ -79,22 +83,47 @@ async function saveSettings() {
 
 // Update UI based on current settings
 function updateUI() {
-    enabledToggle.checked = currentSettings.enabled;
-    volumeSlider.value = Math.round(currentSettings.volume * 100);
-    volumeValue.textContent = Math.round(currentSettings.volume * 100) + '%';
+    // Update checkbox
+    if (currentSettings.enabled) {
+        enabledToggle.classList.add('checked');
+    } else {
+        enabledToggle.classList.remove('checked');
+    }
+    
+    // Update volume slider and display
+    const volumePercent = Math.round(currentSettings.volume * 100);
+    volumeSlider.value = volumePercent;
+    updateVolumeDisplay();
+    
+    // Update sound selection
     soundSelect.value = currentSettings.selectedSound;
 }
 
+// Update volume display and thumb position
+function updateVolumeDisplay() {
+    const volume = parseInt(volumeSlider.value);
+    volumeValue.textContent = `Volume: ${volume}%`;
+    
+    // Update visual slider thumb position
+    const sliderContainer = document.getElementById('volume-slider-container');
+    if (sliderContainer) {
+        const containerWidth = sliderContainer.offsetWidth;
+        const thumbPosition = ((volume / 100) * (containerWidth - 18)) + 2; // Account for borders and thumb width
+        volumeThumb.style.left = `${Math.max(2, Math.min(thumbPosition, containerWidth - 18))}px`;
+    }
+}
+
 // Event listeners
-enabledToggle.addEventListener('change', async () => {
-    currentSettings.enabled = enabledToggle.checked;
+enabledToggle.addEventListener('click', async function() {
+    this.classList.toggle('checked');
+    currentSettings.enabled = this.classList.contains('checked');
     await saveSettings();
 });
 
 volumeSlider.addEventListener('input', () => {
+    updateVolumeDisplay();
     const volume = parseInt(volumeSlider.value) / 100;
     currentSettings.volume = volume;
-    volumeValue.textContent = volumeSlider.value + '%';
 });
 
 volumeSlider.addEventListener('change', async () => {
@@ -107,44 +136,50 @@ soundSelect.addEventListener('change', async () => {
 });
 
 testSoundBtn.addEventListener('click', async () => {
-    testSoundBtn.textContent = '🎵 Playing...';
+    const originalText = testSoundBtn.textContent;
+    testSoundBtn.textContent = 'Playing...';
     testSoundBtn.disabled = true;
     
     try {
-        // Try to find an active ChatGPT or Claude tab to play the sound
-        const tabs = await chrome.tabs.query({ 
-            active: true, 
-            url: [
-                "*://chatgpt.com/*", 
-                "*://chat.openai.com/*",
-                "*://claude.ai/*"
-            ] 
-        });
-        
-        if (tabs.length > 0) {
-            // Play sound in ChatGPT tab
-            await chrome.tabs.sendMessage(tabs[0].id, {
-                action: 'testSound',
-                soundFile: currentSettings.selectedSound,
-                volume: currentSettings.volume
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            // Try to find an active ChatGPT or Claude tab to play the sound
+            const tabs = await chrome.tabs.query({ 
+                active: true, 
+                url: [
+                    "*://chatgpt.com/*", 
+                    "*://chat.openai.com/*",
+                    "*://claude.ai/*"
+                ] 
             });
-            showStatus('Test sound played!');
+            
+            if (tabs.length > 0) {
+                // Play sound in chat tab
+                await chrome.tabs.sendMessage(tabs[0].id, {
+                    action: 'testSound',
+                    soundFile: currentSettings.selectedSound,
+                    volume: currentSettings.volume
+                });
+                showStatus('Test sound played!');
+            } else {
+                // No chat tab, try to play in background
+                await chrome.runtime.sendMessage({
+                    action: 'testSound',
+                    soundFile: currentSettings.selectedSound,
+                    volume: currentSettings.volume
+                });
+                showStatus('Test sound played!');
+            }
         } else {
-            // No ChatGPT tab, try to play in background
-            await chrome.runtime.sendMessage({
-                action: 'testSound',
-                soundFile: currentSettings.selectedSound,
-                volume: currentSettings.volume
-            });
+            // Fallback for testing without chrome extension
             showStatus('Test sound played!');
         }
     } catch (error) {
         console.error('Test sound failed:', error);
-                    showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
+        showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
     }
     
     setTimeout(() => {
-        testSoundBtn.textContent = '🎵 Test Sound';
+        testSoundBtn.textContent = originalText;
         testSoundBtn.disabled = false;
     }, 1000);
 });
@@ -152,26 +187,52 @@ testSoundBtn.addEventListener('click', async () => {
 // Check if ChatGPT or Claude tabs are open
 async function checkSupportedTabs() {
     try {
-        const tabs = await chrome.tabs.query({ 
-            url: [
-                "*://chatgpt.com/*", 
-                "*://chat.openai.com/*",
-                "*://claude.ai/*"
-            ] 
-        });
-        if (tabs.length === 0) {
-            showStatus('Open ChatGPT or Claude to enable notifications', false);
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            const tabs = await chrome.tabs.query({ 
+                url: [
+                    "*://chatgpt.com/*", 
+                    "*://chat.openai.com/*",
+                    "*://claude.ai/*"
+                ] 
+            });
+            if (tabs.length === 0) {
+                showStatus('Open ChatGPT or Claude to enable notifications');
+            }
         }
     } catch (error) {
         console.error('Failed to check tabs:', error);
     }
 }
 
+// Window controls (just for show)
+document.querySelectorAll('.control-btn').forEach(btn => {
+    btn.addEventListener('mousedown', function() {
+        this.style.border = '1px inset #c0c0c0';
+    });
+    
+    btn.addEventListener('mouseup', function() {
+        this.style.border = '1px outset #c0c0c0';
+    });
+});
+
 // Initialize popup
 async function init() {
     await loadSettings();
     await checkSupportedTabs();
+    
+    // Ensure UI is updated after elements are rendered and have dimensions
+    setTimeout(() => {
+        updateUI();
+        console.log('UI initialized');
+    }, 100);
 }
 
-// Start initialization
-init();
+// Start initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+
+// Also update volume display when window resizes (in case slider container size changes)
+window.addEventListener('resize', updateVolumeDisplay);
