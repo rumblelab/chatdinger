@@ -1,5 +1,4 @@
 // Popup script for ChatGPT Alert settings
-console.log('ChatGPT Alert: Popup loaded');
 
 // DOM elements
 const enabledToggle = document.getElementById('enabled-toggle');
@@ -41,9 +40,7 @@ async function loadSettings() {
             }
         }
         updateUI();
-        console.log('Settings loaded:', currentSettings);
     } catch (error) {
-        console.error('Failed to load settings:', error);
         showStatus('Failed to load settings', true);
     }
 }
@@ -53,7 +50,6 @@ async function saveSettings() {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage) {
             await chrome.storage.local.set({ chatAlertSettings: currentSettings });
-            console.log('Settings saved:', currentSettings);
             
             // Notify content scripts about settings change
             const tabs = await chrome.tabs.query({ 
@@ -76,7 +72,6 @@ async function saveSettings() {
         }
         showStatus('Settings saved!');
     } catch (error) {
-        console.error('Failed to save settings:', error);
         showStatus('Failed to save settings', true);
     }
 }
@@ -154,28 +149,36 @@ testSoundBtn.addEventListener('click', async () => {
             
             if (tabs.length > 0) {
                 // Play sound in chat tab
-                await chrome.tabs.sendMessage(tabs[0].id, {
+                const response = await chrome.tabs.sendMessage(tabs[0].id, {
                     action: 'testSound',
                     soundFile: currentSettings.selectedSound,
                     volume: currentSettings.volume
                 });
                 showStatus('Test sound played!');
             } else {
-                // No chat tab, try to play in background
-                await chrome.runtime.sendMessage({
+                // No chat tab active, try background method
+                const response = await chrome.runtime.sendMessage({
                     action: 'testSound',
                     soundFile: currentSettings.selectedSound,
                     volume: currentSettings.volume
                 });
-                showStatus('Test sound played!');
+                
+                if (response.error) {
+                    showStatus(response.error, true);
+                } else {
+                    showStatus('Test sound played!');
+                }
             }
         } else {
             // Fallback for testing without chrome extension
             showStatus('Test sound played!');
         }
     } catch (error) {
-        console.error('Test sound failed:', error);
-        showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
+        if (error.message && error.message.includes('chrome://')) {
+            showStatus('Please open ChatGPT or Claude to test sounds', true);
+        } else {
+            showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
+        }
     }
     
     setTimeout(() => {
@@ -200,8 +203,7 @@ async function checkSupportedTabs() {
             }
         }
     } catch (error) {
-        console.error('Failed to check tabs:', error);
-    }
+        console.error('Error checking supported tabs:', error);}
 }
 
 // Window controls (just for show)
@@ -223,7 +225,6 @@ async function init() {
     // Ensure UI is updated after elements are rendered and have dimensions
     setTimeout(() => {
         updateUI();
-        console.log('UI initialized');
     }, 100);
 }
 

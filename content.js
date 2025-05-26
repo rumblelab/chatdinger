@@ -1,5 +1,4 @@
-// Final Chat Dinger - Works with ChatGPT and Claude
-console.log('Chat Dinger: Final hybrid script loaded!');
+// Chat Dinger - Works with ChatGPT and Claude
 
 // Detect which site we're on
 const SITE = (() => {
@@ -11,8 +10,6 @@ const SITE = (() => {
     }
     return 'UNKNOWN';
 })();
-
-console.log(`Chat Dinger: Detected site: ${SITE}`);
 
 // Settings management
 let settings = {
@@ -48,7 +45,6 @@ async function loadSettings() {
         if (result.chatAlertSettings) {
             settings = { ...settings, ...result.chatAlertSettings };
         }
-        console.log('Chat Dinger: Settings loaded:', settings);
     } catch (error) {
         console.error('Chat Dinger: Failed to load settings:', error);
     }
@@ -59,12 +55,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.action) {
         case 'settingsUpdated':
             settings = { ...settings, ...message.settings };
-            console.log('Chat Dinger: Settings updated:', settings);
             sendResponse({ status: 'Settings updated' });
             break;
             
         case 'testSound':
-            console.log('Chat Dinger: Test sound requested');
             playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume);
             sendResponse({ status: 'Test sound played' });
             break;
@@ -90,10 +84,8 @@ async function unlockAudioContext() {
             await audioContext.resume();
         }
         audioContextUnlocked = true;
-        console.log(`✅ Chat Dinger: Audio unlocked via ${SITE} send button click!`);
         return true;
     } catch (e) {
-        console.error('Failed to unlock audio context:', e);
         return false;
     }
 }
@@ -122,7 +114,6 @@ async function createBeep(volume = 0.5) {
         
         return true;
     } catch (e) {
-        console.error('Fallback beep failed:', e);
         return false;
     }
 }
@@ -136,10 +127,8 @@ async function playSound(soundFile = null, volume = null) {
         const audio = new Audio(chrome.runtime.getURL(`sounds/${audioFile}`));
         audio.volume = audioVolume;
         await audio.play();
-        console.log(`✅ Chat Dinger: Played ${audioFile} at volume ${Math.round(audioVolume * 100)}% on ${SITE}`);
         return true;
     } catch (e) {
-        console.warn(`Chat Dinger: Failed to play ${audioFile}, using fallback beep:`, e.message);
         await createBeep(audioVolume);
         return false;
     }
@@ -149,17 +138,13 @@ async function playSound(soundFile = null, volume = null) {
 async function playAlert() {
     // Check if notifications are enabled
     if (!settings.enabled) {
-        console.log('Chat Dinger: Notifications disabled, skipping alert');
         return;
     }
     
     if (!canPlayAlertSound) {
-        console.log('Chat Dinger: Alert debounced.');
         return;
     }
-    
-    console.log(`🎉 Chat Dinger: ${SITE} generation completed! Playing notification...`);
-    
+        
     await playSound();
 
     // Debounce
@@ -209,23 +194,18 @@ function getChatGPTButtonState(button) {
 
 function processChatGPTButtonState(buttonElement) {
     const currentState = getChatGPTButtonState(buttonElement);
-    
-    console.log(`Chat Dinger: ChatGPT state check - Was generating: ${chatgptIsGenerating}, Now generating: ${currentState.isGenerating}, First check: ${chatgptFirstGenerationCheck}`);
-    
+        
     // For first generation in new chat, allow any completion (generation goes from true to false)
     if (chatgptFirstGenerationCheck && !currentState.isGenerating && chatgptIsGenerating) {
-        console.log('🎉 Chat Dinger: ChatGPT first generation completed!');
         playAlert();
         chatgptFirstGenerationCheck = false; // Reset flag after first generation
     }
     // Normal case: generation just completed
     else if (!chatgptFirstGenerationCheck && chatgptIsGenerating && !currentState.isGenerating) {
-        console.log('🎉 Chat Dinger: ChatGPT generation completed!');
         playAlert();
     }
     // Reset first generation flag once we see a generating state
     else if (chatgptFirstGenerationCheck && currentState.isGenerating) {
-        console.log('🔄 Chat Dinger: ChatGPT first generation started');
         chatgptFirstGenerationCheck = false; // We've seen generation start, no longer first
     }
     
@@ -244,12 +224,10 @@ function addChatGPTClickListener(button) {
         
         // Only unlock on send clicks (not stop clicks)
         if (state.hasSendIndicator && !audioContextUnlocked) {
-            console.log('🎯 Chat Dinger: ChatGPT send button clicked - unlocking audio...');
             await unlockAudioContext();
         }
     }, { passive: true });
     
-    console.log('✅ Chat Dinger: Added click listener to ChatGPT send button');
 }
 
 function cleanupChatGPTObservers() {
@@ -264,7 +242,6 @@ function cleanupChatGPTObservers() {
 }
 
 function handleChatGPTButtonRemoved() {
-    console.log('Chat Dinger: ChatGPT submit button was removed from DOM.');
     if (chatgptIsGenerating) {
         playAlert();
     }
@@ -292,8 +269,6 @@ function startMonitoringChatGPTButton(button) {
     const initialState = getChatGPTButtonState(chatgptButtonInstance);
     chatgptIsGenerating = initialState.isGenerating;
     
-    console.log(`Chat Dinger: Now monitoring ChatGPT button. Initial state - generating: ${chatgptIsGenerating}, First generation check: ${chatgptFirstGenerationCheck}`);
-
     // Watch for all types of changes
     chatgptAttributeChangeObserver = new MutationObserver(mutationsList => {
         for (const mutation of mutationsList) {
@@ -340,7 +315,6 @@ function startMonitoringChatGPTButton(button) {
 }
 
 function findChatGPTButton() {
-    console.log('Chat Dinger: Looking for ChatGPT button...');
     
     for (const selector of CHATGPT_SELECTORS) {
         try {
@@ -350,12 +324,10 @@ function findChatGPTButton() {
                 const hasRelevantContent = state.ariaLabel || state.textContent;
                 
                 if (hasRelevantContent) {
-                    console.log(`Chat Dinger: Found ChatGPT button with selector "${selector}"`);
                     return button;
                 }
             }
         } catch (e) {
-            console.log(`Chat Dinger: Selector "${selector}" failed:`, e);
         }
     }
     return null;
@@ -369,16 +341,13 @@ function observeForChatGPTButton() {
 
     const button = findChatGPTButton();
     if (button) {
-        console.log('Chat Dinger: Found ChatGPT button immediately.');
         startMonitoringChatGPTButton(button);
         return;
     }
 
-    console.log('Chat Dinger: ChatGPT button not found. Observing DOM for its appearance...');
     chatgptInitialButtonFinderObserver = new MutationObserver((mutationsList, observer) => {
         const foundButton = findChatGPTButton();
         if (foundButton) {
-            console.log('Chat Dinger: Found ChatGPT button via DOM observer.');
             observer.disconnect();
             chatgptInitialButtonFinderObserver = null;
             startMonitoringChatGPTButton(foundButton);
@@ -416,7 +385,6 @@ function findClaudeButton() {
 }
 
 function setupClaudeMonitoring() {
-    console.log('🔍 Setting up Claude monitoring...');
     
     function checkClaudeButton() {
         const button = findClaudeButton();
@@ -424,7 +392,6 @@ function setupClaudeMonitoring() {
         
         // Log state changes for debugging
         if (buttonExists !== claudeButtonExists) {
-            console.log(`🔄 Claude button state changed: ${claudeButtonExists ? 'exists' : 'missing'} → ${buttonExists ? 'exists' : 'missing'}`);
         }
         
         // Track if button has ever existed (to avoid new chat false positives)
@@ -434,21 +401,14 @@ function setupClaudeMonitoring() {
         
         // Button disappeared - generation likely started
         if (claudeButtonExists && !buttonExists) {
-            console.log('🔄 Claude button disappeared - generation likely started');
             claudeGenerationInProgress = true;
         }
         
         // Button reappeared after being gone - generation completed!
         // BUT only if button has existed before (not new chat)
         if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeButtonHasExistedBefore) {
-            console.log('🎉 Claude button reappeared after generation - playing sound!');
             playAlert();
             claudeGenerationInProgress = false; // Reset flag
-        }
-        
-        // Button appeared for first time (new chat) - don't trigger sound
-        if (!claudeButtonExists && buttonExists && !claudeButtonHasExistedBefore) {
-            console.log('ℹ️ Claude button appeared for first time (new chat) - not triggering sound');
         }
         
         // Add click listener when button exists (for audio unlock)
@@ -456,15 +416,12 @@ function setupClaudeMonitoring() {
             button.dataset.claudeListener = 'true';
             
             button.addEventListener('click', async (event) => {
-                console.log('👆 Claude button clicked!');
                 
                 if (!audioContextUnlocked) {
-                    console.log('🎯 Claude send button clicked - unlocking audio...');
                     await unlockAudioContext();
                 }
             });
             
-            console.log('✅ Added click listener to Claude button');
         }
         
         claudeButtonExists = buttonExists;
@@ -485,7 +442,6 @@ function setupClaudeMonitoring() {
 function startChatGPTMaintenance() {
     setInterval(() => {
         if (!chatgptButtonInstance || !document.contains(chatgptButtonInstance)) {
-            console.log('Chat Dinger: Periodic check - ChatGPT button missing, re-scanning...');
             observeForChatGPTButton();
         }
     }, 5000);
@@ -497,7 +453,6 @@ window.testChatDinger = () => playAlert();
 // Initialize based on site
 async function init() {
     if (SITE === 'UNKNOWN') {
-        console.log('Chat Dinger: Unknown site, extension disabled');
         return;
     }
     
@@ -510,9 +465,6 @@ async function init() {
     } else if (SITE === 'CLAUDE') {
         setupClaudeMonitoring();
     }
-    
-    console.log(`🚀 Chat Dinger: Ready for ${SITE}! Click send button to unlock audio.`);
-    console.log(`📊 Settings: ${settings.enabled ? 'Enabled' : 'Disabled'} | Volume: ${Math.round(settings.volume * 100)}% | Sound: ${settings.selectedSound}`);
 }
 
 // Start the extension
