@@ -37,12 +37,13 @@
           "sounds/alert.mp3",
           "sounds/boop.wav",
           "sounds/ding.mp3",
-          "sounds/hmm.mp3",
+          "sounds/hmm.wav",
           "sounds/default.wav",
           "sounds/hidden_message.wav",
           "sounds/glitch.wav",
           "sounds/generating.wav",
-          "sounds/cowbell.wav"
+          "sounds/cowbell.wav",
+          "images/gentlemansagreementfinal.jpeg"
         ],
         "matches": [
           "*://chatgpt.com/*", 

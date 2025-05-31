@@ -13,7 +13,7 @@ const volumeThumb = document.getElementById('volume-thumb');
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'alert.mp3'
+    selectedSound: 'coin'
 };
 
 // Current settings
@@ -136,7 +136,12 @@ testSoundBtn.addEventListener('click', async () => {
     testSoundBtn.disabled = true;
     
     try {
-        if (typeof chrome !== 'undefined' && chrome.tabs) {
+        // Handle beep sound locally in popup
+        if (currentSettings.selectedSound === 'beep') {
+            // Create beep directly in popup context
+            await createPopupBeep(currentSettings.volume);
+            showStatus('Test beep played!');
+        } else if (typeof chrome !== 'undefined' && chrome.tabs) {
             // Try to find an active ChatGPT or Claude tab to play the sound
             const tabs = await chrome.tabs.query({ 
                 active: true, 
@@ -186,6 +191,68 @@ testSoundBtn.addEventListener('click', async () => {
         testSoundBtn.disabled = false;
     }, 1000);
 });
+
+async function createPopupBeep(volume = 0.5) {
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.type = 'sine';
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+        
+        return true;
+    } catch (e) {
+        console.error('Popup beep failed:', e);
+        return false;
+    }
+}
+
+async function createPopupCoin(volume = 0.5) {
+    try {
+        const audioContext = createAudioContext();
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        
+        // Classic coin sound frequency pattern
+        oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(1319, audioContext.currentTime + 0.1);
+        
+        oscillator.type = 'square';
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.4);
+        
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+
 
 // Check if ChatGPT or Claude tabs are open
 async function checkSupportedTabs() {

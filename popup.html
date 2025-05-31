@@ -290,6 +290,12 @@
         ::-webkit-scrollbar-button:active {
             border: 1px inset #c0c0c0;
         }
+        #ask{
+
+        }
+        #thank-you{
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -334,11 +340,13 @@
                 </div>
                 <div class="setting-row">
                     <select class="dropdown" id="sound-select">
-                        <option value="default.wav">Default</option>
-                        <option value="alert.mp3">Brown Alert</option>
-                        <option value="boop.wav">Boop</option>
+                        <option value="coin">Coin</option>
                         <option value="ding.mp3">Ding</option>
-                        <option value="hmm.mp3">Hmm</option>
+                        <option value="beep">Beep</option>
+                        <option value="default.wav">Bloop</option>
+                        <option value="alert.mp3">Alert</option>
+                        <option value="boop.wav">Boop</option>
+                        <option value="hmm.wav">Hmm</option>
                     </select>
                 </div>
                 <div class="setting-row">
@@ -351,7 +359,7 @@
 
         <div class="status-bar">
             <div class="status-panel hidden" id="status-panel">Ready</div>
-            <span id="status-text"><a href="https://chatdinger.com">chatdinger.com</a></span>
+            <span id="ask"><a href="https://chatdinger.com/review">leave a review...</a></span>
         </div>
     </div>
 

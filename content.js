@@ -1,4 +1,127 @@
 // Chat Dinger - Works with ChatGPT and Claude
+//righthook tracking
+console.log('Chat Dinger: by discofish.')
+let soundPlayCount = 0;
+let hasShownPopup = false;
+const askThreshold = 7; // Show popup after 10 plays
+
+async function loadSoundCount() {
+    try {
+        const result = await chrome.storage.local.get(['soundPlayCount', 'hasShownPopup']);
+        soundPlayCount = result.soundPlayCount || 0;
+        hasShownPopup = result.hasShownPopup || false;
+    } catch (error) {
+        console.error('Chat Dinger: Failed to load sound count:', error);
+    }
+}
+async function saveSoundCount() {
+    try {
+        await chrome.storage.local.set({ 
+            soundPlayCount: soundPlayCount,
+            hasShownPopup: hasShownPopup 
+        });
+    } catch (error) {
+        console.error('Chat Dinger: Failed to save sound count:', error);
+    }
+}
+// Show the popup after 10 plays
+function showThanksPopup() {
+    // Create popup overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'chat-dinger-popup-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 10001;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    // Create the popup
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        max-width: 400px;
+        text-align: center;
+        position: relative;
+        animation: slideIn 0.3s ease-out;
+    `;
+
+    // Add slide-in animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    popup.innerHTML = `
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 48px; margin-bottom: 8px;"></div>
+            <h2 style="margin: 0; color: #333; font-size: 20px;">I know now's probably a bad time...</h2>
+            <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            BUT, here's the deal...
+        </p>
+        </div>
+        <image style="align-items: center" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You" style="width: 100%; max-width: 200px; margin-bottom: 16px;">
+        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            in exchange for a review, we will give you access to something sweet. 
+        </p>
+        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            (the review link is in the popup where you set your sounds. )
+        </p>
+
+        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
+            <button id="deal" style="
+                background: #4285f4;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+            ">🤝 Deal</button> 
+
+        </div>
+    `;
+
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+
+    document.getElementById('deal').addEventListener('click', () => {
+        hasShownPopup = true;
+        saveSoundCount();
+        overlay.remove();
+    });
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+        }
+    });
+
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            overlay.remove();
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
 
 // Detect which site we're on
 const SITE = (() => {
@@ -15,7 +138,7 @@ const SITE = (() => {
 let settings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'alert.mp3'
+    selectedSound: 'coin'
 };
 
 // Audio management
@@ -90,6 +213,37 @@ async function unlockAudioContext() {
     }
 }
 
+async function createCoinSound(volume = 0.4) {
+    try {
+        const audioContext = createAudioContext();
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        
+        // Classic coin sound frequency pattern
+        oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(1319, audioContext.currentTime + 0.1);
+        
+        oscillator.type = 'square';
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+        
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
 async function createBeep(volume = 0.5) {
     try {
         const audioContext = createAudioContext();
@@ -117,18 +271,28 @@ async function createBeep(volume = 0.5) {
         return false;
     }
 }
-
-// Play sound function - uses current settings
 async function playSound(soundFile = null, volume = null) {
     const audioFile = soundFile || settings.selectedSound;
     const audioVolume = volume !== null ? volume : settings.volume;
     
+    // Handle the special 'beep' case
+    if (audioFile === 'beep') {
+        await createBeep(audioVolume);
+        return true;
+    }
+    if (audioFile === 'coin'){
+        await createCoinSound(audioVolume);
+        return true;
+    }
+    
+    // Try to play regular audio file
     try {
         const audio = new Audio(chrome.runtime.getURL(`sounds/${audioFile}`));
         audio.volume = audioVolume;
         await audio.play();
         return true;
     } catch (e) {
+        console.error('Chat Dinger: Audio file failed, falling back to beep:', e);
         await createBeep(audioVolume);
         return false;
     }
@@ -140,12 +304,25 @@ async function playAlert() {
     if (!settings.enabled) {
         return;
     }
-    
+
     if (!canPlayAlertSound) {
         return;
     }
         
     await playSound();
+
+    // Increment counter and check for popup
+    soundPlayCount++;
+    
+    // Show popup after 10 plays (and user hasn't seen it yet)
+    if (soundPlayCount >= askThreshold && !hasShownPopup) {
+        setTimeout(showThanksPopup, 1000); // Small delay so sound finishes first
+    }
+    
+    // Save count periodically
+    if (soundPlayCount % 5 === 0) {
+        await saveSoundCount();
+    }
 
     // Debounce
     canPlayAlertSound = false;
@@ -315,7 +492,6 @@ function startMonitoringChatGPTButton(button) {
 }
 
 function findChatGPTButton() {
-    
     for (const selector of CHATGPT_SELECTORS) {
         try {
             const buttons = document.querySelectorAll(selector);
@@ -456,8 +632,9 @@ async function init() {
         return;
     }
     
-    // Load settings first
+    // Load settings and sound count
     await loadSettings();
+    await loadSoundCount();
     
     if (SITE === 'CHATGPT') {
         observeForChatGPTButton();
