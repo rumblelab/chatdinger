@@ -38,14 +38,10 @@
       {
         "resources": [
           "sounds/alert.mp3",
-          "sounds/boop.wav",
           "sounds/ding.mp3",
           "sounds/hmm.wav",
           "sounds/default.wav",
-          "sounds/hidden_message.wav",
           "sounds/glitch.wav",
-          "sounds/generating.wav",
-          "sounds/cowbell.wav",
           "images/gentlemansagreementfinal.jpeg",
           "images/icon32.png"
         ],
