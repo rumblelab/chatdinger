@@ -91,10 +91,10 @@ function showThanksPopup() {
         </div>
         <img style="width: 100%; max-width: 200px; margin-bottom: 16px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            in exchange for a review, we will give you access to something sweet. 
+            i will stop annoying you with popups, asking for a review if you leave me a review.
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            (the review link is in the popup where you set your sounds. )
+            (the review link is in the popup where you set your sounds. shake on it and you will never hear from me again.)
         </p>
 
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
