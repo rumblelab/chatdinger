@@ -4,10 +4,10 @@ let soundPlayCount = 0;
 let hasShownPopup = false;
 const askThreshold = 7;
 
-// Audio management
+// Audio management - Fixed initialization
 let globalAudioContext = null;
 let audioContextUnlocked = false;
-let lastUserInteraction = Date.now();
+let lastUserInteraction = 0; // Initialize to 0 instead of Date.now()
 
 async function loadSoundCount() {
     try {
@@ -218,23 +218,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-// Audio functions
+// Audio functions - Fixed to prevent AudioContext errors
 function createAudioContext() {
     if (!globalAudioContext) {
-        globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        try {
+            globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.error('Chat Dinger: Failed to create AudioContext:', e);
+            return null;
+        }
     }
     return globalAudioContext;
 }
 
+
 async function unlockAudioContext() {
     try {
+        // Don't try to unlock if we haven't had a very recent user interaction
+        if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 5000) {
+            console.log('Chat Dinger: No recent user interaction, skipping audio context unlock');
+            return false;
+        }
+
+        // Only create context when we actually need it and have user interaction
         const audioContext = createAudioContext();
+        if (!audioContext) return false;
+        
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
         audioContextUnlocked = true;
-        lastUserInteraction = Date.now();
-        console.log('Chat Dinger: Audio context unlocked');
+        console.log('Chat Dinger: Audio context unlocked successfully');
         return true;
     } catch (e) {
         console.error('Chat Dinger: Failed to unlock audio context:', e);
@@ -244,14 +258,23 @@ async function unlockAudioContext() {
 
 async function createCoinSound(volume = 0.4) {
     try {
-        const audioContext = createAudioContext();
-        
-        if (audioContext.state === 'suspended') {
-            if ((Date.now() - lastUserInteraction) < 10000) {
-                await audioContext.resume();
-            } else {
-                return await createNotificationSound('Chat response ready!');
-            }
+        // Check if we have recent user interaction
+        if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 30000) {
+            console.log('Chat Dinger: No recent user interaction, using notification fallback');
+            return await createNotificationSound('Chat response ready!');
+        }
+
+        // Try to ensure audio context is ready
+        const contextReady = await ensureAudioContextReady();
+        if (!contextReady) {
+            console.log('Chat Dinger: Audio context not ready, using notification');
+            return await createNotificationSound('Chat response ready!');
+        }
+
+        const audioContext = globalAudioContext;
+        if (!audioContext || audioContext.state === 'suspended') {
+            console.log('Chat Dinger: Audio context suspended, using notification');
+            return await createNotificationSound('Chat response ready!');
         }
         
         const oscillator = audioContext.createOscillator();
@@ -278,17 +301,25 @@ async function createCoinSound(volume = 0.4) {
         return await createNotificationSound('Chat response ready!');
     }
 }
-
 async function createBeep(volume = 0.5) {
     try {
-        const audioContext = createAudioContext();
-        
-        if (audioContext.state === 'suspended') {
-            if ((Date.now() - lastUserInteraction) < 10000) {
-                await audioContext.resume();
-            } else {
-                return await createNotificationSound('Chat response ready!');
-            }
+        // Check if we have recent user interaction
+        if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 30000) {
+            console.log('Chat Dinger: No recent user interaction, using notification fallback');
+            return await createNotificationSound('Chat response ready!');
+        }
+
+        // Try to ensure audio context is ready
+        const contextReady = await ensureAudioContextReady();
+        if (!contextReady) {
+            console.log('Chat Dinger: Audio context not ready, using notification');
+            return await createNotificationSound('Chat response ready!');
+        }
+
+        const audioContext = globalAudioContext;
+        if (!audioContext || audioContext.state === 'suspended') {
+            console.log('Chat Dinger: Audio context suspended, using notification');
+            return await createNotificationSound('Chat response ready!');
         }
         
         const oscillator = audioContext.createOscillator();
@@ -430,14 +461,19 @@ async function playSound(soundFile = null, volume = null) {
     return await createNotificationSound('Your chat response is ready!');
 }
 
-// Track user interactions
 function trackUserInteraction() {
     lastUserInteraction = Date.now();
-    
-    if (!audioContextUnlocked) {
-        unlockAudioContext();
-    }
+    // Don't immediately try to unlock - just record the interaction
+    console.log('Chat Dinger: User interaction recorded');
 }
+
+async function ensureAudioContextReady() {
+    if (!audioContextUnlocked && lastUserInteraction && (Date.now() - lastUserInteraction) < 5000) {
+        return await unlockAudioContext();
+    }
+    return audioContextUnlocked;
+}
+
 
 ['click', 'keydown', 'touchstart', 'mousedown'].forEach(eventType => {
     document.addEventListener(eventType, trackUserInteraction, { passive: true });
@@ -446,6 +482,7 @@ function trackUserInteraction() {
 // Main alert function
 async function playAlert() {
     if (!settings.enabled) {
+        console.log('Chat Dinger: Alert triggered but sounds are disabled in settings');
         return;
     }
 
@@ -533,7 +570,6 @@ function processChatGPTButtonState(buttonElement) {
     
     chatgptIsGenerating = currentState.isGenerating;
 }
-
 function addChatGPTClickListener(button) {
     if (button.dataset.chatgptListener) {
         return;
@@ -544,8 +580,10 @@ function addChatGPTClickListener(button) {
     button.addEventListener('click', async (event) => {
         const state = getChatGPTButtonState(button);
         
-        if (state.hasSendIndicator && !audioContextUnlocked) {
-            await unlockAudioContext();
+        // Only try to unlock audio context when user clicks send button
+        if (state.hasSendIndicator) {
+            lastUserInteraction = Date.now();
+            // Don't immediately unlock, wait until we need to play sound
         }
     }, { passive: true });
 }
@@ -698,7 +736,6 @@ function findClaudeButton() {
     }
     return null;
 }
-
 function setupClaudeMonitoring() {
     function checkClaudeButton() {
         const button = findClaudeButton();
@@ -725,9 +762,8 @@ function setupClaudeMonitoring() {
             button.dataset.claudeListener = 'true';
             
             button.addEventListener('click', async (event) => {
-                if (!audioContextUnlocked) {
-                    await unlockAudioContext();
-                }
+                // Record interaction but don't immediately unlock audio context
+                lastUserInteraction = Date.now();
             });
         }
         
@@ -760,7 +796,7 @@ async function init() {
     await loadSettings();
     await loadSoundCount();
     
-    createAudioContext();
+    // Don't create AudioContext here - wait for user interaction
     
     if ('Notification' in window && Notification.permission === 'default') {
         console.log('Chat Dinger: Notification permission not granted - some features may not work when minimized');
