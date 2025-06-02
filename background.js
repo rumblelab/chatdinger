@@ -13,6 +13,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
     
+    // Handle other messages...
     return true;
   });
   
@@ -92,6 +93,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Function to be injected into tab
   function playTestSoundInTab(soundFile, volume) {
     try {
+      console.log('Chat Dinger: Playing test sound in tab:', soundFile, volume);
       
       // Try Web Audio API first for generated sounds
       if (soundFile === 'beep' || soundFile === 'coin') {
@@ -101,6 +103,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Try to resume if suspended
           if (audioContext.state === 'suspended') {
             audioContext.resume().then(() => {
+              console.log('Chat Dinger: Audio context resumed for test');
             }).catch(e => {
               console.warn('Chat Dinger: Could not resume audio context:', e);
             });
@@ -128,6 +131,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.5);
           }
+          console.log('Chat Dinger: Generated sound played successfully');
           return;
         } catch (e) {
           console.error('Chat Dinger: Web Audio API failed:', e);
@@ -148,6 +152,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.then(() => {
+            console.log('Chat Dinger: Audio file played successfully');
           }).catch(e => {
             console.error('Chat Dinger: Audio file playback failed:', e);
             
@@ -166,6 +171,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               oscillator.type = 'sine';
               oscillator.start(audioContext.currentTime);
               oscillator.stop(audioContext.currentTime + 0.3);
+              console.log('Chat Dinger: Fallback beep played');
             } catch (fallbackError) {
               console.error('Chat Dinger: All audio methods failed:', fallbackError);
             }
@@ -189,6 +195,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           oscillator.type = 'sine';
           oscillator.start(audioContext.currentTime);
           oscillator.stop(audioContext.currentTime + 0.2);
+          console.log('Chat Dinger: Emergency fallback beep played');
         } catch (emergencyError) {
           console.error('Chat Dinger: Even emergency fallback failed:', emergencyError);
         }
@@ -236,6 +243,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }, 3000);
       
+      console.log('Chat Dinger: Notification created successfully');
       return true;
     } catch (error) {
       console.error('Chat Dinger: Notification creation failed:', error);
@@ -262,6 +270,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     messageHandlingInProgress = true;
     heartbeatCount = 0;
+    console.log('Chat Dinger: Starting critical task heartbeat');
     
     // Chrome Store Safe: Use storage API calls to maintain service worker
     // This is documented as acceptable in Chrome's official docs
@@ -277,9 +286,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           'session-heartbeats': heartbeatCount
         });
         
+        console.log(`Chat Dinger: Heartbeat ${heartbeatCount}`);
         
         // Safety: Stop after reasonable number of beats
         if (heartbeatCount > 20) { // Max ~8 minutes of keep-alive
+          console.log('Chat Dinger: Max heartbeats reached, stopping');
           stopCriticalTaskHeartbeat();
         }
         
@@ -294,6 +305,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       clearInterval(heartbeatInterval);
       heartbeatInterval = null;
       messageHandlingInProgress = false;
+      console.log(`Chat Dinger: Stopped heartbeat after ${heartbeatCount} beats`);
       heartbeatCount = 0;
     }
   }
@@ -315,18 +327,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Clean up on service worker events
   chrome.runtime.onSuspend.addListener(() => {
+    console.log('Chat Dinger: Service worker suspending, cleaning up');
     stopCriticalTaskHeartbeat();
   });
   
   chrome.runtime.onStartup.addListener(() => {
+    console.log('Chat Dinger: Service worker starting up');
     // Reset any persistent state
     stopCriticalTaskHeartbeat();
   });
   
   // Handle extension install/update
   chrome.runtime.onInstalled.addListener((details) => {
+    console.log('Chat Dinger: Extension installed/updated:', details.reason);
     
     if (details.reason === 'install') {
+      console.log('Chat Dinger: First time install - setting up defaults');
       
       // Set default settings on first install
       chrome.storage.local.set({
@@ -342,22 +358,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   });
   
-  // Handle extension being enabled (check if API is available)
-  if (chrome.management && chrome.management.onEnabled) {
-    chrome.management.onEnabled.addListener((info) => {
-      if (info.id === chrome.runtime.id) {
-      }
-    });
-  }
-  
-  // Handle extension being disabled (check if API is available)
-  if (chrome.management && chrome.management.onDisabled) {
-    chrome.management.onDisabled.addListener((info) => {
-      if (info.id === chrome.runtime.id) {
-        stopCriticalTaskHeartbeat();
-      }
-    });
-  }
+  // Removed chrome.management event listeners - no longer needed
   
   // Periodic cleanup (runs every 5 minutes when service worker is active)
   // Use more conservative approach for Chrome Store safety
@@ -390,6 +391,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
       if (keysToRemove.length > 0) {
         chrome.storage.local.remove(keysToRemove);
+        console.log(`Chat Dinger: Cleaned up ${keysToRemove.length} old storage entries`);
       }
       
       // Update last cleanup time
@@ -404,3 +406,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Chrome Store Safe: Log extension activity for debugging (not resource intensive)
   console.log('Chat Dinger: Background script loaded - Chrome Store safe version');
+  console.log('Chat Dinger: Service worker lifecycle managed with conservative keep-alive');

@@ -8,8 +8,7 @@
       "storage",    
       "scripting",
       "activeTab",
-      "notifications",
-      "management"
+      "notifications"
     ],
     "host_permissions": [
       "*://chat.openai.com/*",
