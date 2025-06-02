@@ -1,9 +1,13 @@
-// Chat Dinger - Works with ChatGPT and Claude
-//righthook tracking
+// Chat Dinger - Complete Enhanced Version for Chrome Store
 console.log('Chat Dinger: by discofish.')
 let soundPlayCount = 0;
 let hasShownPopup = false;
-const askThreshold = 7; // Show popup after 10 plays
+const askThreshold = 7;
+
+// Audio management
+let globalAudioContext = null;
+let audioContextUnlocked = false;
+let lastUserInteraction = Date.now();
 
 async function loadSoundCount() {
     try {
@@ -14,19 +18,32 @@ async function loadSoundCount() {
         console.error('Chat Dinger: Failed to load sound count:', error);
     }
 }
+
 async function saveSoundCount() {
     try {
+        // Check if extension context is still valid
+        if (!chrome.runtime?.id) {
+            console.warn('Chat Dinger: Extension context invalidated, cannot save sound count');
+            return false;
+        }
+        
         await chrome.storage.local.set({ 
             soundPlayCount: soundPlayCount,
             hasShownPopup: hasShownPopup 
         });
+        return true;
     } catch (error) {
+        if (error.message.includes('Extension context invalidated')) {
+            console.warn('Chat Dinger: Extension context invalidated during save - this is normal after extension reload');
+            return false;
+        }
         console.error('Chat Dinger: Failed to save sound count:', error);
+        return false;
     }
 }
-// Show the popup after 10 plays
+
+// Show the popup after threshold plays
 function showThanksPopup() {
-    // Create popup overlay
     const overlay = document.createElement('div');
     overlay.id = 'chat-dinger-popup-overlay';
     overlay.style.cssText = `
@@ -43,7 +60,6 @@ function showThanksPopup() {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     `;
 
-    // Create the popup
     const popup = document.createElement('div');
     popup.style.cssText = `
         background: white;
@@ -56,7 +72,6 @@ function showThanksPopup() {
         animation: slideIn 0.3s ease-out;
     `;
 
-    // Add slide-in animation
     const style = document.createElement('style');
     style.textContent = `
         @keyframes slideIn {
@@ -74,7 +89,7 @@ function showThanksPopup() {
             BUT, here's the deal...
         </p>
         </div>
-        <image style="align-items: center" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You" style="width: 100%; max-width: 200px; margin-bottom: 16px;">
+        <img style="width: 100%; max-width: 200px; margin-bottom: 16px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
             in exchange for a review, we will give you access to something sweet. 
         </p>
@@ -106,14 +121,12 @@ function showThanksPopup() {
         overlay.remove();
     });
 
-    // Close on overlay click
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
             overlay.remove();
         }
     });
 
-    // Close on Escape key
     const handleEscape = (e) => {
         if (e.key === 'Escape') {
             overlay.remove();
@@ -142,21 +155,17 @@ let settings = {
 };
 
 // Audio management
-let audioContextUnlocked = false;
-let globalAudioContext = null;
-
-// ChatGPT monitoring (original approach)
-let chatgptButtonInstance = null;
-let chatgptIsGenerating = false;
-let chatgptFirstGenerationCheck = true; // Flag for first generation
 let canPlayAlertSound = true;
 
-// ChatGPT Observers
+// ChatGPT monitoring variables
+let chatgptButtonInstance = null;
+let chatgptIsGenerating = false;
+let chatgptFirstGenerationCheck = true;
 let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 
-// Claude monitoring (reappearance approach)
+// Claude monitoring variables
 let claudeButtonExists = false;
 let claudeGenerationInProgress = false;
 let claudeButtonHasExistedBefore = false;
@@ -164,17 +173,34 @@ let claudeButtonHasExistedBefore = false;
 // Load settings from storage
 async function loadSettings() {
     try {
+        // Check if extension context is still valid
+        if (!chrome.runtime?.id) {
+            console.warn('Chat Dinger: Extension context invalidated, using default settings');
+            return;
+        }
+        
         const result = await chrome.storage.local.get(['chatAlertSettings']);
         if (result.chatAlertSettings) {
             settings = { ...settings, ...result.chatAlertSettings };
         }
     } catch (error) {
+        if (error.message.includes('Extension context invalidated')) {
+            console.warn('Chat Dinger: Extension context invalidated during load - using defaults');
+            return;
+        }
         console.error('Chat Dinger: Failed to load settings:', error);
     }
 }
 
 // Listen for messages from popup and background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Check if extension context is still valid
+    if (!chrome.runtime?.id) {
+        console.warn('Chat Dinger: Extension context invalidated, ignoring message');
+        sendResponse({ status: 'Extension context invalidated' });
+        return false;
+    }
+    
     switch (message.action) {
         case 'settingsUpdated':
             settings = { ...settings, ...message.settings };
@@ -207,8 +233,11 @@ async function unlockAudioContext() {
             await audioContext.resume();
         }
         audioContextUnlocked = true;
+        lastUserInteraction = Date.now();
+        console.log('Chat Dinger: Audio context unlocked');
         return true;
     } catch (e) {
+        console.error('Chat Dinger: Failed to unlock audio context:', e);
         return false;
     }
 }
@@ -216,8 +245,13 @@ async function unlockAudioContext() {
 async function createCoinSound(volume = 0.4) {
     try {
         const audioContext = createAudioContext();
+        
         if (audioContext.state === 'suspended') {
-            await audioContext.resume();
+            if ((Date.now() - lastUserInteraction) < 10000) {
+                await audioContext.resume();
+            } else {
+                return await createNotificationSound('Chat response ready!');
+            }
         }
         
         const oscillator = audioContext.createOscillator();
@@ -229,7 +263,6 @@ async function createCoinSound(volume = 0.4) {
         gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
         
-        // Classic coin sound frequency pattern
         oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
         oscillator.frequency.setValueAtTime(1319, audioContext.currentTime + 0.1);
         
@@ -238,17 +271,24 @@ async function createCoinSound(volume = 0.4) {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
         
+        console.log('Chat Dinger: Coin sound played via Web Audio');
         return true;
     } catch (e) {
-        return false;
+        console.error('Chat Dinger: Web Audio failed, using notification:', e);
+        return await createNotificationSound('Chat response ready!');
     }
 }
 
 async function createBeep(volume = 0.5) {
     try {
         const audioContext = createAudioContext();
+        
         if (audioContext.state === 'suspended') {
-            await audioContext.resume();
+            if ((Date.now() - lastUserInteraction) < 10000) {
+                await audioContext.resume();
+            } else {
+                return await createNotificationSound('Chat response ready!');
+            }
         }
         
         const oscillator = audioContext.createOscillator();
@@ -266,41 +306,145 @@ async function createBeep(volume = 0.5) {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
         
+        console.log('Chat Dinger: Beep played via Web Audio');
         return true;
     } catch (e) {
-        return false;
+        console.error('Chat Dinger: Web Audio beep failed, using notification:', e);
+        return await createNotificationSound('Chat response ready!');
     }
 }
-async function playSound(soundFile = null, volume = null) {
-    const audioFile = soundFile || settings.selectedSound;
-    const audioVolume = volume !== null ? volume : settings.volume;
-    
-    // Handle the special 'beep' case
-    if (audioFile === 'beep') {
-        await createBeep(audioVolume);
-        return true;
-    }
-    if (audioFile === 'coin'){
-        await createCoinSound(audioVolume);
-        return true;
-    }
-    
-    // Try to play regular audio file
+
+async function createNotificationSound(message = 'Chat response ready!') {
     try {
-        const audio = new Audio(chrome.runtime.getURL(`sounds/${audioFile}`));
-        audio.volume = audioVolume;
-        await audio.play();
-        return true;
+        // Check if extension context is still valid first
+        if (!chrome.runtime?.id) {
+            console.warn('Chat Dinger: Extension context invalidated, cannot create notification');
+            return false;
+        }
+        
+        if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+                const notification = new Notification('Chat Dinger', {
+                    body: message,
+                    icon: chrome.runtime.getURL('images/icon32.png'),
+                    silent: false,
+                    tag: 'chat-dinger-response',
+                    requireInteraction: false
+                });
+                
+                setTimeout(() => {
+                    notification.close();
+                }, 3000);
+                
+                console.log('Chat Dinger: Notification sound played');
+                return true;
+            } else if (Notification.permission === 'default') {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    return await createNotificationSound(message);
+                }
+            }
+        }
+        
+        // Try background script as fallback
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'playNotificationSound',
+                message: message
+            });
+            return response.success || false;
+        } catch (e) {
+            if (e.message.includes('Extension context invalidated')) {
+                console.warn('Chat Dinger: Extension context invalidated during notification');
+                return false;
+            }
+            console.error('Chat Dinger: Background notification failed:', e);
+        }
+        
+        console.warn('Chat Dinger: All notification methods failed');
+        return false;
     } catch (e) {
-        console.error('Chat Dinger: Audio file failed, falling back to beep:', e);
-        await createBeep(audioVolume);
+        console.error('Chat Dinger: Notification sound failed:', e);
         return false;
     }
 }
 
+async function playAudioFile(soundFile, volume) {
+    try {
+        // Check if extension context is still valid
+        if (!chrome.runtime?.id) {
+            console.warn('Chat Dinger: Extension context invalidated, cannot play audio file');
+            return false;
+        }
+        
+        const audio = new Audio(chrome.runtime.getURL(`sounds/${soundFile}`));
+        audio.volume = Math.min(volume, 1.0);
+        audio.preload = 'auto';
+        
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            await playPromise;
+            console.log('Chat Dinger: Audio file played successfully:', soundFile);
+            return true;
+        }
+    } catch (e) {
+        console.error('Chat Dinger: Audio file playback failed for', soundFile, ':', e);
+        // Don't auto-fallback to notification here - let the caller decide
+        return false;
+    }
+    return false;
+}
+
+async function playSound(soundFile = null, volume = null) {
+    const audioFile = soundFile || settings.selectedSound;
+    const audioVolume = volume !== null ? volume : settings.volume;
+    
+    console.log('Chat Dinger: Playing sound:', audioFile, 'volume:', audioVolume);
+    
+    // Handle generated sounds first (these work better when minimized)
+    if (audioFile === 'beep') {
+        const success = await createBeep(audioVolume);
+        if (success) return true;
+    }
+    
+    if (audioFile === 'coin') {
+        const success = await createCoinSound(audioVolume);
+        if (success) return true;
+    }
+    
+    // Try audio files for other sounds
+    if (audioFile !== 'beep' && audioFile !== 'coin') {
+        const audioSuccess = await playAudioFile(audioFile, audioVolume);
+        if (audioSuccess) {
+            return true;
+        }
+        console.log('Chat Dinger: Audio file failed, trying generated coin sound as fallback');
+        
+        // Fallback to coin sound instead of notification if audio file fails
+        const coinSuccess = await createCoinSound(audioVolume);
+        if (coinSuccess) return true;
+    }
+    
+    // Final fallback to notification (works when minimized)
+    console.log('Chat Dinger: Using notification fallback');
+    return await createNotificationSound('Your chat response is ready!');
+}
+
+// Track user interactions
+function trackUserInteraction() {
+    lastUserInteraction = Date.now();
+    
+    if (!audioContextUnlocked) {
+        unlockAudioContext();
+    }
+}
+
+['click', 'keydown', 'touchstart', 'mousedown'].forEach(eventType => {
+    document.addEventListener(eventType, trackUserInteraction, { passive: true });
+});
+
 // Main alert function
 async function playAlert() {
-    // Check if notifications are enabled
     if (!settings.enabled) {
         return;
     }
@@ -308,23 +452,27 @@ async function playAlert() {
     if (!canPlayAlertSound) {
         return;
     }
+    
+    console.log('Chat Dinger: Playing alert sound');
+    
+    const success = await playSound();
+    
+    if (success) {
+        soundPlayCount++;
         
-    await playSound();
-
-    // Increment counter and check for popup
-    soundPlayCount++;
-    
-    // Show popup after 10 plays (and user hasn't seen it yet)
-    if (soundPlayCount >= askThreshold && !hasShownPopup) {
-        setTimeout(showThanksPopup, 1000); // Small delay so sound finishes first
-    }
-    
-    // Save count periodically
-    if (soundPlayCount % 5 === 0) {
-        await saveSoundCount();
+        if (soundPlayCount >= askThreshold && !hasShownPopup) {
+            setTimeout(showThanksPopup, 1000);
+        }
+        
+        // Only try to save if extension context is valid
+        if (soundPlayCount % 5 === 0) {
+            const saveSuccess = await saveSoundCount();
+            if (!saveSuccess) {
+                console.warn('Chat Dinger: Could not save sound count, extension may have been reloaded');
+            }
+        }
     }
 
-    // Debounce
     canPlayAlertSound = false;
     setTimeout(() => {
         canPlayAlertSound = true;
@@ -332,7 +480,7 @@ async function playAlert() {
 }
 
 // ========================================
-// CHATGPT LOGIC (from working script)
+// CHATGPT LOGIC
 // ========================================
 
 const CHATGPT_SELECTORS = [
@@ -372,18 +520,15 @@ function getChatGPTButtonState(button) {
 function processChatGPTButtonState(buttonElement) {
     const currentState = getChatGPTButtonState(buttonElement);
         
-    // For first generation in new chat, allow any completion (generation goes from true to false)
     if (chatgptFirstGenerationCheck && !currentState.isGenerating && chatgptIsGenerating) {
         playAlert();
-        chatgptFirstGenerationCheck = false; // Reset flag after first generation
+        chatgptFirstGenerationCheck = false;
     }
-    // Normal case: generation just completed
     else if (!chatgptFirstGenerationCheck && chatgptIsGenerating && !currentState.isGenerating) {
         playAlert();
     }
-    // Reset first generation flag once we see a generating state
     else if (chatgptFirstGenerationCheck && currentState.isGenerating) {
-        chatgptFirstGenerationCheck = false; // We've seen generation start, no longer first
+        chatgptFirstGenerationCheck = false;
     }
     
     chatgptIsGenerating = currentState.isGenerating;
@@ -391,7 +536,7 @@ function processChatGPTButtonState(buttonElement) {
 
 function addChatGPTClickListener(button) {
     if (button.dataset.chatgptListener) {
-        return; // Already has listener
+        return;
     }
     
     button.dataset.chatgptListener = 'true';
@@ -399,12 +544,10 @@ function addChatGPTClickListener(button) {
     button.addEventListener('click', async (event) => {
         const state = getChatGPTButtonState(button);
         
-        // Only unlock on send clicks (not stop clicks)
         if (state.hasSendIndicator && !audioContextUnlocked) {
             await unlockAudioContext();
         }
     }, { passive: true });
-    
 }
 
 function cleanupChatGPTObservers() {
@@ -425,7 +568,7 @@ function handleChatGPTButtonRemoved() {
     cleanupChatGPTObservers();
     chatgptButtonInstance = null;
     chatgptIsGenerating = false;
-    chatgptFirstGenerationCheck = true; // Reset for new chat
+    chatgptFirstGenerationCheck = true;
     observeForChatGPTButton();
 }
 
@@ -437,16 +580,12 @@ function startMonitoringChatGPTButton(button) {
     cleanupChatGPTObservers();
     chatgptButtonInstance = button;
 
-    // Add click listener for audio unlocking
     addChatGPTClickListener(button);
-
-    // Reset first generation flag for new button (new chat)
     chatgptFirstGenerationCheck = true;
 
     const initialState = getChatGPTButtonState(chatgptButtonInstance);
     chatgptIsGenerating = initialState.isGenerating;
     
-    // Watch for all types of changes
     chatgptAttributeChangeObserver = new MutationObserver(mutationsList => {
         for (const mutation of mutationsList) {
             if (mutation.type === 'attributes') {
@@ -468,7 +607,6 @@ function startMonitoringChatGPTButton(button) {
         characterData: true
     });
 
-    // Watch for button removal
     const parentElement = chatgptButtonInstance.parentElement;
     if (parentElement) {
         chatgptButtonRemovedObserver = new MutationObserver(mutationsList => {
@@ -504,6 +642,7 @@ function findChatGPTButton() {
                 }
             }
         } catch (e) {
+            // Continue to next selector
         }
     }
     return null;
@@ -537,7 +676,7 @@ function observeForChatGPTButton() {
 }
 
 // ========================================
-// CLAUDE LOGIC (reappearance approach)
+// CLAUDE LOGIC
 // ========================================
 
 function findClaudeButton() {
@@ -561,52 +700,41 @@ function findClaudeButton() {
 }
 
 function setupClaudeMonitoring() {
-    
     function checkClaudeButton() {
         const button = findClaudeButton();
         const buttonExists = !!button;
         
-        // Log state changes for debugging
         if (buttonExists !== claudeButtonExists) {
+            console.log('Chat Dinger: Claude button state changed:', buttonExists);
         }
         
-        // Track if button has ever existed (to avoid new chat false positives)
         if (buttonExists) {
             claudeButtonHasExistedBefore = true;
         }
         
-        // Button disappeared - generation likely started
         if (claudeButtonExists && !buttonExists) {
             claudeGenerationInProgress = true;
         }
         
-        // Button reappeared after being gone - generation completed!
-        // BUT only if button has existed before (not new chat)
         if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeButtonHasExistedBefore) {
             playAlert();
-            claudeGenerationInProgress = false; // Reset flag
+            claudeGenerationInProgress = false;
         }
         
-        // Add click listener when button exists (for audio unlock)
         if (buttonExists && button && !button.dataset.claudeListener) {
             button.dataset.claudeListener = 'true';
             
             button.addEventListener('click', async (event) => {
-                
                 if (!audioContextUnlocked) {
                     await unlockAudioContext();
                 }
             });
-            
         }
         
         claudeButtonExists = buttonExists;
     }
     
-    // Check every 500ms
     setInterval(checkClaudeButton, 500);
-    
-    // Initial check
     checkClaudeButton();
 }
 
@@ -614,7 +742,6 @@ function setupClaudeMonitoring() {
 // INITIALIZATION
 // ========================================
 
-// ChatGPT periodic maintenance
 function startChatGPTMaintenance() {
     setInterval(() => {
         if (!chatgptButtonInstance || !document.contains(chatgptButtonInstance)) {
@@ -623,18 +750,23 @@ function startChatGPTMaintenance() {
     }, 5000);
 }
 
-// Manual test function
 window.testChatDinger = () => playAlert();
 
-// Initialize based on site
 async function init() {
     if (SITE === 'UNKNOWN') {
         return;
     }
     
-    // Load settings and sound count
     await loadSettings();
     await loadSoundCount();
+    
+    createAudioContext();
+    
+    if ('Notification' in window && Notification.permission === 'default') {
+        console.log('Chat Dinger: Notification permission not granted - some features may not work when minimized');
+    }
+    
+    console.log('Chat Dinger: Enhanced version initialized for', SITE);
     
     if (SITE === 'CHATGPT') {
         observeForChatGPTButton();
@@ -644,5 +776,4 @@ async function init() {
     }
 }
 
-// Start the extension
 init();

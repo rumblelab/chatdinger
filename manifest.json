@@ -2,12 +2,14 @@
     "manifest_version": 3,
     "name": "Chat Dinger - Notification Sounds",
     "short_name": "Chat Dinger",
-    "version": "2.0",
+    "version": "2.1",
     "description": "Never miss when Claude.ai or ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
     "permissions": [
       "storage",    
       "scripting",
-      "activeTab"
+      "activeTab",
+      "notifications",
+      "management"
     ],
     "host_permissions": [
       "*://chat.openai.com/*",
@@ -28,7 +30,8 @@
           "*://claude.ai/*"
         ],
         "js": ["content.js"],
-        "run_at": "document_idle"
+        "run_at": "document_idle",
+        "all_frames": false
       }
     ],
     "web_accessible_resources": [
@@ -43,7 +46,8 @@
           "sounds/glitch.wav",
           "sounds/generating.wav",
           "sounds/cowbell.wav",
-          "images/gentlemansagreementfinal.jpeg"
+          "images/gentlemansagreementfinal.jpeg",
+          "images/icon32.png"
         ],
         "matches": [
           "*://chatgpt.com/*", 

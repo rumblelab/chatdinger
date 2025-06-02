@@ -1,4 +1,4 @@
-// Popup script for ChatGPT Alert settings
+// Enhanced popup script for Chat Dinger
 
 // DOM elements
 const enabledToggle = document.getElementById('enabled-toggle');
@@ -9,14 +9,14 @@ const testSoundBtn = document.getElementById('test-sound');
 const statusMessage = document.getElementById('status-message');
 const volumeThumb = document.getElementById('volume-thumb');
 
-// Default settings
+// Default settings with new options
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'coin'
+    selectedSound: 'coin',
+    enableNotifications: true
 };
 
-// Current settings
 let currentSettings = { ...defaultSettings };
 
 // Show status message
@@ -27,7 +27,27 @@ function showStatus(message, isError = false) {
     
     setTimeout(() => {
         statusMessage.classList.add('hidden');
-    }, 3000);
+    }, 4000);
+}
+
+// Request notification permission
+async function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                showStatus('Notification permission granted - better reliability when minimized!');
+                currentSettings.enableNotifications = true;
+                await saveSettings();
+            } else {
+                showStatus('Notification permission denied - some features may not work when minimized', true);
+                currentSettings.enableNotifications = false;
+                await saveSettings();
+            }
+        } catch (error) {
+            console.error('Failed to request notification permission:', error);
+        }
+    }
 }
 
 // Load settings from storage
@@ -40,6 +60,7 @@ async function loadSettings() {
             }
         }
         updateUI();
+        validateSettings();
     } catch (error) {
         showStatus('Failed to load settings', true);
     }
@@ -103,65 +124,99 @@ function updateVolumeDisplay() {
     const sliderContainer = document.getElementById('volume-slider-container');
     if (sliderContainer) {
         const containerWidth = sliderContainer.offsetWidth;
-        const thumbPosition = ((volume / 100) * (containerWidth - 18)) + 2; // Account for borders and thumb width
+        const thumbPosition = ((volume / 100) * (containerWidth - 18)) + 2;
         volumeThumb.style.left = `${Math.max(2, Math.min(thumbPosition, containerWidth - 18))}px`;
     }
 }
 
-// Event listeners
-enabledToggle.addEventListener('click', async function() {
-    this.classList.toggle('checked');
-    currentSettings.enabled = this.classList.contains('checked');
-    await saveSettings();
-});
+// Enhanced settings validation
+function validateSettings() {
+    const notificationStatus = getNotificationStatus();
+    
+    if (notificationStatus.available && !notificationStatus.permitted) {
+        showStatus('Enable notifications for better reliability when Chrome is minimized');
+        addNotificationEnableButton();
+    }
+    
+    if (!window.AudioContext && !window.webkitAudioContext) {
+        showStatus('Web Audio not supported - using fallback methods', true);
+    }
+}
 
-volumeSlider.addEventListener('input', () => {
-    updateVolumeDisplay();
-    const volume = parseInt(volumeSlider.value) / 100;
-    currentSettings.volume = volume;
-});
+function getNotificationStatus() {
+    return {
+        available: 'Notification' in window,
+        permitted: 'Notification' in window && Notification.permission === 'granted',
+        denied: 'Notification' in window && Notification.permission === 'denied'
+    };
+}
 
-volumeSlider.addEventListener('change', async () => {
-    await saveSettings();
-});
+function addNotificationEnableButton() {
+    const existingBtn = document.getElementById('enable-notifications-btn');
+    if (existingBtn) return;
+    
+    const notificationGroup = document.createElement('div');
+    notificationGroup.className = 'group-box';
+    notificationGroup.innerHTML = `
+        <div class="group-title">Background Mode</div>
+        <div class="setting-row">
+            <label class="label">Enable notifications for better reliability when Chrome is minimized</label>
+        </div>
+        <div class="setting-row">
+            <button class="button" id="enable-notifications-btn">Enable Notifications</button>
+        </div>
+    `;
+    
+    const soundGroup = document.querySelector('.group-box:last-of-type');
+    soundGroup.parentNode.insertBefore(notificationGroup, soundGroup);
+    
+    document.getElementById('enable-notifications-btn').addEventListener('click', async () => {
+        await requestNotificationPermission();
+        
+        if (Notification.permission === 'granted') {
+            notificationGroup.remove();
+        }
+    });
+}
 
-soundSelect.addEventListener('change', async () => {
-    currentSettings.selectedSound = soundSelect.value;
-    await saveSettings();
-});
-
+// Enhanced test sound function
 testSoundBtn.addEventListener('click', async () => {
     const originalText = testSoundBtn.textContent;
     testSoundBtn.textContent = 'Playing...';
     testSoundBtn.disabled = true;
     
     try {
-        // Handle beep sound locally in popup
-        if (currentSettings.selectedSound === 'beep') {
-            // Create beep directly in popup context
-            await createPopupBeep(currentSettings.volume);
-            showStatus('Test beep played!');
-        } else if (typeof chrome !== 'undefined' && chrome.tabs) {
-            // Try to find an active ChatGPT or Claude tab to play the sound
-            const tabs = await chrome.tabs.query({ 
-                active: true, 
-                url: [
-                    "*://chatgpt.com/*", 
-                    "*://chat.openai.com/*",
-                    "*://claude.ai/*"
-                ] 
-            });
-            
-            if (tabs.length > 0) {
-                // Play sound in chat tab
-                const response = await chrome.tabs.sendMessage(tabs[0].id, {
-                    action: 'testSound',
-                    soundFile: currentSettings.selectedSound,
-                    volume: currentSettings.volume
+        let soundPlayed = false;
+        
+        // Method 1: Try content script in active tab
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+            try {
+                const tabs = await chrome.tabs.query({ 
+                    active: true, 
+                    url: [
+                        "*://chatgpt.com/*", 
+                        "*://chat.openai.com/*",
+                        "*://claude.ai/*"
+                    ] 
                 });
-                showStatus('Test sound played!');
-            } else {
-                // No chat tab active, try background method
+                
+                if (tabs.length > 0) {
+                    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+                        action: 'testSound',
+                        soundFile: currentSettings.selectedSound,
+                        volume: currentSettings.volume
+                    });
+                    soundPlayed = true;
+                    showStatus('Test sound played in chat tab!');
+                }
+            } catch (e) {
+                console.log('Content script method failed, trying background method');
+            }
+        }
+        
+        // Method 2: Try background script injection
+        if (!soundPlayed && typeof chrome !== 'undefined' && chrome.runtime) {
+            try {
                 const response = await chrome.runtime.sendMessage({
                     action: 'testSound',
                     soundFile: currentSettings.selectedSound,
@@ -169,21 +224,46 @@ testSoundBtn.addEventListener('click', async () => {
                 });
                 
                 if (response.error) {
-                    showStatus(response.error, true);
-                } else {
-                    showStatus('Test sound played!');
+                    throw new Error(response.error);
                 }
+                soundPlayed = true;
+                showStatus(response.status);
+            } catch (e) {
+                console.log('Background injection failed, trying notification method');
             }
-        } else {
-            // Fallback for testing without chrome extension
-            showStatus('Test sound played!');
         }
+        
+        // Method 3: Try notification fallback
+        if (!soundPlayed && currentSettings.enableNotifications) {
+            try {
+                const response = await chrome.runtime.sendMessage({
+                    action: 'playNotificationSound',
+                    title: 'Chat Dinger Test',
+                    message: 'Test sound played via notification!'
+                });
+                soundPlayed = true;
+                showStatus('Test sound played via notification!');
+            } catch (e) {
+                console.log('Notification method failed');
+            }
+        }
+        
+        // Method 4: Local popup sound (for basic testing)
+        if (!soundPlayed) {
+            if (currentSettings.selectedSound === 'beep') {
+                await createPopupBeep(currentSettings.volume);
+                showStatus('Test beep played locally (may not work when minimized)');
+            } else if (currentSettings.selectedSound === 'coin') {
+                await createPopupCoin(currentSettings.volume);
+                showStatus('Test coin played locally (may not work when minimized)');
+            } else {
+                showStatus('Please open ChatGPT or Claude to test audio files', true);
+            }
+        }
+        
     } catch (error) {
-        if (error.message && error.message.includes('chrome://')) {
-            showStatus('Please open ChatGPT or Claude to test sounds', true);
-        } else {
-            showStatus('Test sound failed - make sure ChatGPT or Claude is open', true);
-        }
+        console.error('All test methods failed:', error);
+        showStatus('Test failed - try opening ChatGPT or Claude first', true);
     }
     
     setTimeout(() => {
@@ -192,9 +272,11 @@ testSoundBtn.addEventListener('click', async () => {
     }, 1000);
 });
 
+// Enhanced popup beep with better error handling
 async function createPopupBeep(volume = 0.5) {
     try {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
@@ -221,9 +303,10 @@ async function createPopupBeep(volume = 0.5) {
     }
 }
 
-async function createPopupCoin(volume = 0.5) {
+async function createPopupCoin(volume = 0.4) {
     try {
-        const audioContext = createAudioContext();
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
@@ -237,24 +320,44 @@ async function createPopupCoin(volume = 0.5) {
         gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
         
-        // Classic coin sound frequency pattern
         oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
         oscillator.frequency.setValueAtTime(1319, audioContext.currentTime + 0.1);
         
         oscillator.type = 'square';
         
         oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.4);
+        oscillator.stop(audioContext.currentTime + 0.5);
         
         return true;
     } catch (e) {
+        console.error('Popup coin failed:', e);
         return false;
     }
 }
 
+// Event listeners
+enabledToggle.addEventListener('click', async function() {
+    this.classList.toggle('checked');
+    currentSettings.enabled = this.classList.contains('checked');
+    await saveSettings();
+});
 
+volumeSlider.addEventListener('input', () => {
+    updateVolumeDisplay();
+    const volume = parseInt(volumeSlider.value) / 100;
+    currentSettings.volume = volume;
+});
 
-// Check if ChatGPT or Claude tabs are open
+volumeSlider.addEventListener('change', async () => {
+    await saveSettings();
+});
+
+soundSelect.addEventListener('change', async () => {
+    currentSettings.selectedSound = soundSelect.value;
+    await saveSettings();
+});
+
+// Check supported tabs and notification status
 async function checkSupportedTabs() {
     try {
         if (typeof chrome !== 'undefined' && chrome.tabs) {
@@ -265,15 +368,27 @@ async function checkSupportedTabs() {
                     "*://claude.ai/*"
                 ] 
             });
+            
+            const notificationStatus = getNotificationStatus();
+            
             if (tabs.length === 0) {
-                showStatus('Open ChatGPT or Claude to enable notifications');
+                if (notificationStatus.permitted) {
+                    showStatus('Open ChatGPT or Claude for best experience (notifications enabled for backup)');
+                } else {
+                    showStatus('Open ChatGPT or Claude to enable notifications');
+                }
+            } else {
+                if (!notificationStatus.permitted) {
+                    showStatus('Extension active! Enable notifications for better reliability when minimized');
+                }
             }
         }
     } catch (error) {
-        console.error('Error checking supported tabs:', error);}
+        console.error('Error checking supported tabs:', error);
+    }
 }
 
-// Window controls (just for show)
+// Window controls (cosmetic)
 document.querySelectorAll('.control-btn').forEach(btn => {
     btn.addEventListener('mousedown', function() {
         this.style.border = '1px inset #c0c0c0';
@@ -289,18 +404,23 @@ async function init() {
     await loadSettings();
     await checkSupportedTabs();
     
-    // Ensure UI is updated after elements are rendered and have dimensions
+    // Request notification permission if not already granted
+    if (currentSettings.enableNotifications && 'Notification' in window && Notification.permission === 'default') {
+        setTimeout(() => {
+            requestNotificationPermission();
+        }, 1000);
+    }
+    
     setTimeout(() => {
         updateUI();
     }, 100);
 }
 
-// Start initialization when DOM is ready
+// Start initialization
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
 }
 
-// Also update volume display when window resizes (in case slider container size changes)
 window.addEventListener('resize', updateVolumeDisplay);
