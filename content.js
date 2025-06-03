@@ -165,10 +165,12 @@ let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 
-// Claude monitoring variables
 let claudeButtonExists = false;
 let claudeGenerationInProgress = false;
 let claudeButtonHasExistedBefore = false;
+let claudeUserJustSubmitted = false; // New flag to track user submissions
+let claudeLastButtonClickTime = 0;   // Track when user clicked send
+
 
 // Load settings from storage
 async function loadSettings() {
@@ -698,7 +700,6 @@ function observeForChatGPTButton() {
 // ========================================
 // CLAUDE LOGIC
 // ========================================
-
 function findClaudeButton() {
     const selectors = [
         'fieldset button[aria-label*="Send"]',
@@ -719,33 +720,81 @@ function findClaudeButton() {
     return null;
 }
 function setupClaudeMonitoring() {
+    // Use event delegation to catch clicks on dynamically created buttons
+    document.addEventListener('click', function(event) {
+        const clickedElement = event.target;
+        
+        // Check if clicked element or its parent is a send button
+        let sendButton = null;
+        if (clickedElement.matches('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]')) {
+            sendButton = clickedElement;
+        } else if (clickedElement.closest('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]')) {
+            sendButton = clickedElement.closest('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]');
+        }
+        
+        if (sendButton) {
+            const ariaLabel = (sendButton.getAttribute('aria-label') || '').toLowerCase();
+            if (ariaLabel.includes('send')) {
+                // Record interaction and mark that user just submitted
+                lastUserInteraction = Date.now();
+                claudeUserJustSubmitted = true;
+                claudeLastButtonClickTime = Date.now();
+                console.log('Claude: User clicked send button via event delegation');
+                
+                // Set a shorter timeout to detect when generation starts
+                setTimeout(() => {
+                    if (claudeUserJustSubmitted && !claudeGenerationInProgress) {
+                        const currentButton = findClaudeButton();
+                        if (!currentButton) {
+                            claudeGenerationInProgress = true;
+                            console.log('Claude: Generation detected after send click');
+                        }
+                    }
+                }, 100);
+            }
+        }
+    }, true); // Use capture phase to catch events early
+    
     function checkClaudeButton() {
         const button = findClaudeButton();
         const buttonExists = !!button;
         
+        // Reset user submission flag after some time (in case generation never starts)
+        if (claudeUserJustSubmitted && (Date.now() - claudeLastButtonClickTime) > 15000) {
+            claudeUserJustSubmitted = false;
+            console.log('Claude: Reset user submission flag (timeout)');
+        }
+        
         if (buttonExists !== claudeButtonExists) {
+            console.log('Claude: Button state changed -', buttonExists ? 'appeared' : 'disappeared');
         }
         
         if (buttonExists) {
             claudeButtonHasExistedBefore = true;
         }
         
+        // Button disappeared - generation likely started
         if (claudeButtonExists && !buttonExists) {
-            claudeGenerationInProgress = true;
+            if (claudeUserJustSubmitted) {
+                claudeGenerationInProgress = true;
+                console.log('Claude: Generation started after user submission');
+            } else {
+                console.log('Claude: Button disappeared but no recent user submission - ignoring');
+            }
         }
         
-        if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeButtonHasExistedBefore) {
+        // Button reappeared - generation likely completed
+        if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeUserJustSubmitted) {
+            console.log('Claude: Generation completed - playing alert');
             playAlert();
             claudeGenerationInProgress = false;
+            claudeUserJustSubmitted = false; // Reset the flag
         }
         
-        if (buttonExists && button && !button.dataset.claudeListener) {
-            button.dataset.claudeListener = 'true';
-            
-            button.addEventListener('click', async (event) => {
-                // Record interaction but don't immediately unlock audio context
-                lastUserInteraction = Date.now();
-            });
+        // Button reappeared without generation in progress (e.g., navigating to existing chat)
+        if (!claudeButtonExists && buttonExists && !claudeGenerationInProgress) {
+            console.log('Claude: Button appeared without generation - likely navigated to chat');
+            // Don't play alert in this case
         }
         
         claudeButtonExists = buttonExists;
@@ -754,7 +803,6 @@ function setupClaudeMonitoring() {
     setInterval(checkClaudeButton, 500);
     checkClaudeButton();
 }
-
 // ========================================
 // INITIALIZATION
 // ========================================
