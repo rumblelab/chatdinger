@@ -7,7 +7,7 @@ const askThreshold = 7;
 // Audio management - Fixed initialization
 let globalAudioContext = null;
 let audioContextUnlocked = false;
-let lastUserInteraction = 0; 
+let lastUserInteraction = 0; // Initialize to 0 instead of Date.now()
 
 async function loadSoundCount() {
     try {
@@ -91,10 +91,10 @@ function showThanksPopup() {
         </div>
         <img style="width: 100%; max-width: 200px; margin-bottom: 16px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            i will stop annoying you with popups, asking for a review if you leave me a review.
+            in exchange for a review, we will give you access to something sweet. 
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            (the review link is in the popup where you set your sounds. shake on it and you will never hear from me again.)
+            (the review link is in the popup where you set your sounds. )
         </p>
 
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
@@ -165,12 +165,10 @@ let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 
+// Claude monitoring variables
 let claudeButtonExists = false;
 let claudeGenerationInProgress = false;
 let claudeButtonHasExistedBefore = false;
-let claudeUserJustSubmitted = false; // New flag to track user submissions
-let claudeLastButtonClickTime = 0;   // Track when user clicked send
-
 
 // Load settings from storage
 async function loadSettings() {
@@ -238,6 +236,7 @@ async function unlockAudioContext() {
     try {
         // Don't try to unlock if we haven't had a very recent user interaction
         if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 5000) {
+            console.log('Chat Dinger: No recent user interaction, skipping audio context unlock');
             return false;
         }
 
@@ -249,6 +248,7 @@ async function unlockAudioContext() {
             await audioContext.resume();
         }
         audioContextUnlocked = true;
+        console.log('Chat Dinger: Audio context unlocked successfully');
         return true;
     } catch (e) {
         console.error('Chat Dinger: Failed to unlock audio context:', e);
@@ -260,17 +260,20 @@ async function createCoinSound(volume = 0.4) {
     try {
         // Check if we have recent user interaction
         if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 30000) {
+            console.log('Chat Dinger: No recent user interaction, using notification fallback');
             return await createNotificationSound('Chat response ready!');
         }
 
         // Try to ensure audio context is ready
         const contextReady = await ensureAudioContextReady();
         if (!contextReady) {
+            console.log('Chat Dinger: Audio context not ready, using notification');
             return await createNotificationSound('Chat response ready!');
         }
 
         const audioContext = globalAudioContext;
         if (!audioContext || audioContext.state === 'suspended') {
+            console.log('Chat Dinger: Audio context suspended, using notification');
             return await createNotificationSound('Chat response ready!');
         }
         
@@ -291,6 +294,7 @@ async function createCoinSound(volume = 0.4) {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
         
+        console.log('Chat Dinger: Coin sound played via Web Audio');
         return true;
     } catch (e) {
         console.error('Chat Dinger: Web Audio failed, using notification:', e);
@@ -301,17 +305,20 @@ async function createBeep(volume = 0.5) {
     try {
         // Check if we have recent user interaction
         if (!lastUserInteraction || (Date.now() - lastUserInteraction) > 30000) {
+            console.log('Chat Dinger: No recent user interaction, using notification fallback');
             return await createNotificationSound('Chat response ready!');
         }
 
         // Try to ensure audio context is ready
         const contextReady = await ensureAudioContextReady();
         if (!contextReady) {
+            console.log('Chat Dinger: Audio context not ready, using notification');
             return await createNotificationSound('Chat response ready!');
         }
 
         const audioContext = globalAudioContext;
         if (!audioContext || audioContext.state === 'suspended') {
+            console.log('Chat Dinger: Audio context suspended, using notification');
             return await createNotificationSound('Chat response ready!');
         }
         
@@ -330,6 +337,7 @@ async function createBeep(volume = 0.5) {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
         
+        console.log('Chat Dinger: Beep played via Web Audio');
         return true;
     } catch (e) {
         console.error('Chat Dinger: Web Audio beep failed, using notification:', e);
@@ -359,6 +367,7 @@ async function createNotificationSound(message = 'Chat response ready!') {
                     notification.close();
                 }, 3000);
                 
+                console.log('Chat Dinger: Notification sound played');
                 return true;
             } else if (Notification.permission === 'default') {
                 const permission = await Notification.requestPermission();
@@ -406,6 +415,7 @@ async function playAudioFile(soundFile, volume) {
         const playPromise = audio.play();
         if (playPromise !== undefined) {
             await playPromise;
+            console.log('Chat Dinger: Audio file played successfully:', soundFile);
             return true;
         }
     } catch (e) {
@@ -420,6 +430,7 @@ async function playSound(soundFile = null, volume = null) {
     const audioFile = soundFile || settings.selectedSound;
     const audioVolume = volume !== null ? volume : settings.volume;
     
+    console.log('Chat Dinger: Playing sound:', audioFile, 'volume:', audioVolume);
     
     // Handle generated sounds first (these work better when minimized)
     if (audioFile === 'beep') {
@@ -438,6 +449,7 @@ async function playSound(soundFile = null, volume = null) {
         if (audioSuccess) {
             return true;
         }
+        console.log('Chat Dinger: Audio file failed, trying generated coin sound as fallback');
         
         // Fallback to coin sound instead of notification if audio file fails
         const coinSuccess = await createCoinSound(audioVolume);
@@ -445,12 +457,14 @@ async function playSound(soundFile = null, volume = null) {
     }
     
     // Final fallback to notification (works when minimized)
+    console.log('Chat Dinger: Using notification fallback');
     return await createNotificationSound('Your chat response is ready!');
 }
 
 function trackUserInteraction() {
     lastUserInteraction = Date.now();
     // Don't immediately try to unlock - just record the interaction
+    console.log('Chat Dinger: User interaction recorded');
 }
 
 async function ensureAudioContextReady() {
@@ -468,6 +482,7 @@ async function ensureAudioContextReady() {
 // Main alert function
 async function playAlert() {
     if (!settings.enabled) {
+        console.log('Chat Dinger: Alert triggered but sounds are disabled in settings');
         return;
     }
 
@@ -475,6 +490,7 @@ async function playAlert() {
         return;
     }
     
+    console.log('Chat Dinger: Playing alert sound');
     
     const success = await playSound();
     
@@ -700,6 +716,7 @@ function observeForChatGPTButton() {
 // ========================================
 // CLAUDE LOGIC
 // ========================================
+
 function findClaudeButton() {
     const selectors = [
         'fieldset button[aria-label*="Send"]',
@@ -720,81 +737,34 @@ function findClaudeButton() {
     return null;
 }
 function setupClaudeMonitoring() {
-    // Use event delegation to catch clicks on dynamically created buttons
-    document.addEventListener('click', function(event) {
-        const clickedElement = event.target;
-        
-        // Check if clicked element or its parent is a send button
-        let sendButton = null;
-        if (clickedElement.matches('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]')) {
-            sendButton = clickedElement;
-        } else if (clickedElement.closest('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]')) {
-            sendButton = clickedElement.closest('fieldset button[aria-label*="Send"], fieldset button[aria-label*="send"], button[aria-label="Send message"]');
-        }
-        
-        if (sendButton) {
-            const ariaLabel = (sendButton.getAttribute('aria-label') || '').toLowerCase();
-            if (ariaLabel.includes('send')) {
-                // Record interaction and mark that user just submitted
-                lastUserInteraction = Date.now();
-                claudeUserJustSubmitted = true;
-                claudeLastButtonClickTime = Date.now();
-                console.log('Claude: User clicked send button via event delegation');
-                
-                // Set a shorter timeout to detect when generation starts
-                setTimeout(() => {
-                    if (claudeUserJustSubmitted && !claudeGenerationInProgress) {
-                        const currentButton = findClaudeButton();
-                        if (!currentButton) {
-                            claudeGenerationInProgress = true;
-                            console.log('Claude: Generation detected after send click');
-                        }
-                    }
-                }, 100);
-            }
-        }
-    }, true); // Use capture phase to catch events early
-    
     function checkClaudeButton() {
         const button = findClaudeButton();
         const buttonExists = !!button;
         
-        // Reset user submission flag after some time (in case generation never starts)
-        if (claudeUserJustSubmitted && (Date.now() - claudeLastButtonClickTime) > 15000) {
-            claudeUserJustSubmitted = false;
-            console.log('Claude: Reset user submission flag (timeout)');
-        }
-        
         if (buttonExists !== claudeButtonExists) {
-            console.log('Claude: Button state changed -', buttonExists ? 'appeared' : 'disappeared');
+            console.log('Chat Dinger: Claude button state changed:', buttonExists);
         }
         
         if (buttonExists) {
             claudeButtonHasExistedBefore = true;
         }
         
-        // Button disappeared - generation likely started
         if (claudeButtonExists && !buttonExists) {
-            if (claudeUserJustSubmitted) {
-                claudeGenerationInProgress = true;
-                console.log('Claude: Generation started after user submission');
-            } else {
-                console.log('Claude: Button disappeared but no recent user submission - ignoring');
-            }
+            claudeGenerationInProgress = true;
         }
         
-        // Button reappeared - generation likely completed
-        if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeUserJustSubmitted) {
-            console.log('Claude: Generation completed - playing alert');
+        if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeButtonHasExistedBefore) {
             playAlert();
             claudeGenerationInProgress = false;
-            claudeUserJustSubmitted = false; // Reset the flag
         }
         
-        // Button reappeared without generation in progress (e.g., navigating to existing chat)
-        if (!claudeButtonExists && buttonExists && !claudeGenerationInProgress) {
-            console.log('Claude: Button appeared without generation - likely navigated to chat');
-            // Don't play alert in this case
+        if (buttonExists && button && !button.dataset.claudeListener) {
+            button.dataset.claudeListener = 'true';
+            
+            button.addEventListener('click', async (event) => {
+                // Record interaction but don't immediately unlock audio context
+                lastUserInteraction = Date.now();
+            });
         }
         
         claudeButtonExists = buttonExists;
@@ -803,6 +773,7 @@ function setupClaudeMonitoring() {
     setInterval(checkClaudeButton, 500);
     checkClaudeButton();
 }
+
 // ========================================
 // INITIALIZATION
 // ========================================
@@ -828,8 +799,10 @@ async function init() {
     // Don't create AudioContext here - wait for user interaction
     
     if ('Notification' in window && Notification.permission === 'default') {
+        console.log('Chat Dinger: Notification permission not granted - some features may not work when minimized');
     }
     
+    console.log('Chat Dinger: Enhanced version initialized for', SITE);
     
     if (SITE === 'CHATGPT') {
         observeForChatGPTButton();

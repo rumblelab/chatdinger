@@ -1,62 +1,64 @@
 {
-    "manifest_version": 3,
-    "name": "Chat Dinger - Notification Sounds",
-    "short_name": "Chat Dinger",
-    "version": "2.1",
-    "description": "Never miss when Claude.ai or ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
-    "permissions": [
-      "storage",    
-      "scripting",
-      "activeTab",
-      "notifications"
-    ],
-    "host_permissions": [
-      "*://chat.openai.com/*",
-      "*://chatgpt.com/*",
-      "*://claude.ai/*"
-    ],
-    "background": {
-      "service_worker": "background.js"
-    },
-    "action": {
-      "default_popup": "popup.html",
-      "default_title": "Chat Dinger Settings"
-    },
-    "content_scripts": [
-      {
-        "matches": [
-          "*://chatgpt.com/*",
-          "*://claude.ai/*"
-        ],
-        "js": ["content.js"],
-        "run_at": "document_idle",
-        "all_frames": false
-      }
-    ],
-    "web_accessible_resources": [
-      {
-        "resources": [
-          "sounds/alert.mp3",
-          "sounds/ding.mp3",
-          "sounds/hmm.wav",
-          "sounds/default.wav",
-          "sounds/glitch.wav",
-          "images/gentlemansagreementfinal.jpeg",
-          "images/icon32.png"
-        ],
-        "matches": [
-          "*://chatgpt.com/*", 
-          "*://claude.ai/*"
-        ]
-      }
-    ],
-    "icons": {
-        "16": "images/icon16.png",
-        "32": "images/icon32.png",
-        "48": "images/icon48.png",
-        "128": "images/icon128.png"
-    },
-    "content_security_policy": {
-        "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self'; object-src 'none'; connect-src 'self';"
+  "manifest_version": 3,
+  "name": "Chat Dinger - Notification Sounds",
+  "short_name": "Chat Dinger",
+  "version": "2.1",
+  "description": "Never miss when Claude.ai or ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
+  "permissions": [
+    "storage",    
+    "scripting",
+    "activeTab",
+    "notifications",
+    "management"
+  ],
+  "host_permissions": [
+    "*://chat.openai.com/*",
+    "*://chatgpt.com/*",
+    "*://claude.ai/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Chat Dinger Settings"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://chatgpt.com/*",
+        "*://claude.ai/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "sounds/alert.mp3",
+        "sounds/boop.wav",
+        "sounds/ding.mp3",
+        "sounds/hmm.wav",
+        "sounds/default.wav",
+        "sounds/hidden_message.wav",
+        "sounds/glitch.wav",
+        "sounds/generating.wav",
+        "sounds/cowbell.wav",
+        "images/gentlemansagreementfinal.jpeg",
+        "images/icon32.png"
+      ],
+      "matches": [
+        "*://chatgpt.com/*", 
+        "*://claude.ai/*"
+      ]
+    }
+  ],
+  "icons": {
+      "16": "images/icon16.png",
+      "32": "images/icon32.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+  }
 }
