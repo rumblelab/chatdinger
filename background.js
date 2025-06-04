@@ -358,25 +358,6 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Handle extension being enabled (check if API is available)
-if (chrome.management && chrome.management.onEnabled) {
-  chrome.management.onEnabled.addListener((info) => {
-    if (info.id === chrome.runtime.id) {
-      console.log('Chat Dinger: Extension enabled');
-    }
-  });
-}
-
-// Handle extension being disabled (check if API is available)
-if (chrome.management && chrome.management.onDisabled) {
-  chrome.management.onDisabled.addListener((info) => {
-    if (info.id === chrome.runtime.id) {
-      console.log('Chat Dinger: Extension disabled, cleaning up');
-      stopCriticalTaskHeartbeat();
-    }
-  });
-}
-
 // Periodic cleanup (runs every 5 minutes when service worker is active)
 // Use more conservative approach for Chrome Store safety
 function setupPeriodicCleanup() {

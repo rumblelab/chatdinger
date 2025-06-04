@@ -8,9 +8,8 @@
     "storage",    
     "scripting",
     "activeTab",
-    "notifications",
-    "management"
-  ],
+    "notifications"
+    ],
   "host_permissions": [
     "*://chat.openai.com/*",
     "*://chatgpt.com/*",
@@ -40,14 +39,9 @@
         "sounds/alert.mp3",
         "sounds/boop.mp3",
         "sounds/ding.mp3",
-        "sounds/hmm.wav",
         "sounds/default.wav",
-        "sounds/hidden_message.wav",
         "sounds/glitch.wav",
-        "sounds/generating.wav",
-        "sounds/cowbell.wav",
-        "images/gentlemansagreementfinal.jpeg",
-        "images/icon32.png"
+        "images/gentlemansagreementfinal.jpeg"
       ],
       "matches": [
         "*://chatgpt.com/*", 

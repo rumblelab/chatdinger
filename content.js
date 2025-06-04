@@ -4,10 +4,10 @@ let soundPlayCount = 0;
 let hasShownPopup = false;
 const askThreshold = 7;
 
-// Audio management - Fixed initialization
+// Audio management 
 let globalAudioContext = null;
 let audioContextUnlocked = false;
-let lastUserInteraction = 0; // Initialize to 0 instead of Date.now()
+let lastUserInteraction = 0; 
 
 async function loadSoundCount() {
     try {
@@ -84,14 +84,14 @@ function showThanksPopup() {
     popup.innerHTML = `
         <div style="margin-bottom: 16px;">
             <div style="font-size: 48px; margin-bottom: 8px;"></div>
-            <h2 style="margin: 0; color: #333; font-size: 20px;">I know now's probably a bad time...</h2>
+            <h2 style="margin: 0; color: #333; font-size: 20px;">I know now's a bad time...</h2>
             <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            BUT, here's the deal...
+            BUT, next time you're waiting on the dinger, consider leaving us a review.
         </p>
         </div>
         <img style="width: 100%; max-width: 200px; margin-bottom: 16px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            in exchange for a review, we will give you access to something sweet. 
+            in exchange, we promise to stop annoying you with popups like this.
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
             (the review link is in the popup where you set your sounds. )
