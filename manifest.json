@@ -38,7 +38,7 @@
     {
       "resources": [
         "sounds/alert.mp3",
-        "sounds/boop.wav",
+        "sounds/boop.mp3",
         "sounds/ding.mp3",
         "sounds/hmm.wav",
         "sounds/default.wav",
