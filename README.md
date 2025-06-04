@@ -4,13 +4,12 @@ An unofficial Chrome extension that adds notification sounds to your AI chats—
 
 ## What it does
 Makes your chats go "ding" when responses come in. Currently works for:
-- claude.ai
 - chatgpt.com
 
 More platforms coming eventually (maybe).
 
 ## Why unofficial?
-There's no point making this an official Chrome Web Store extension when claude.ai and chatgpt.com should really just add this feature themselves. Until they do, here we are.
+There's no point making this an official Chrome Web Store extension when chatgpt.com should really just add this feature themselves. Until they do, here we are.
 
 ## Installation
 

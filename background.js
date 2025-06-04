@@ -23,7 +23,7 @@ async function handleTestSound(message, sendResponse) {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     
     if (tabs.length === 0) {
-      sendResponse({ status: 'No active tab', error: 'Please open ChatGPT or Claude' });
+      sendResponse({ status: 'No active tab', error: 'Please open ChatGPT to test' });
       return;
     }
     
@@ -38,15 +38,15 @@ async function handleTestSound(message, sendResponse) {
       
       // Try notification fallback for restricted pages
       const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification');
-      sendResponse({ 
+      sendResponse({
         status: success ? 'Test notification played' : 'Cannot test on this page',
-        error: success ? null : 'Please open ChatGPT or Claude for full testing'
+        error: success ? null : 'Please open ChatGPT for full testing'
       });
       return;
     }
     
     // Check if tab is a supported site
-    const supportedSites = ['chatgpt.com', 'chat.openai.com', 'claude.ai'];
+    const supportedSites = ['chatgpt.com', 'chat.openai.com'];
     const isSupported = supportedSites.some(site => tab.url.includes(site));
     
     if (!isSupported) {
@@ -54,9 +54,9 @@ async function handleTestSound(message, sendResponse) {
       
       // Try notification fallback for unsupported sites
       const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification');
-      sendResponse({ 
+      sendResponse({
         status: success ? 'Test notification played' : 'Unsupported site',
-        error: success ? null : 'Works best on ChatGPT or Claude'
+        error: success ? null : 'Works best on ChatGPT'
       });
       return;
     }

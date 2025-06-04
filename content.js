@@ -141,8 +141,6 @@ const SITE = (() => {
     const hostname = window.location.hostname;
     if (hostname.includes('chatgpt.com') || hostname.includes('chat.openai.com')) {
         return 'CHATGPT';
-    } else if (hostname.includes('claude.ai')) {
-        return 'CLAUDE';
     }
     return 'UNKNOWN';
 })();
@@ -164,11 +162,6 @@ let chatgptFirstGenerationCheck = true;
 let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
-
-// Claude monitoring variables
-let claudeButtonExists = false;
-let claudeGenerationInProgress = false;
-let claudeButtonHasExistedBefore = false;
 
 // Load settings from storage
 async function loadSettings() {
@@ -714,67 +707,6 @@ function observeForChatGPTButton() {
 }
 
 // ========================================
-// CLAUDE LOGIC
-// ========================================
-
-function findClaudeButton() {
-    const selectors = [
-        'fieldset button[aria-label*="Send"]',
-        'fieldset button[aria-label*="send"]',
-        'button[aria-label="Send message"]',
-        'fieldset button'
-    ];
-    
-    for (const selector of selectors) {
-        const buttons = document.querySelectorAll(selector);
-        for (const button of buttons) {
-            const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-            if (ariaLabel.includes('send')) {
-                return button;
-            }
-        }
-    }
-    return null;
-}
-function setupClaudeMonitoring() {
-    function checkClaudeButton() {
-        const button = findClaudeButton();
-        const buttonExists = !!button;
-        
-        if (buttonExists !== claudeButtonExists) {
-            console.log('Chat Dinger: Claude button state changed:', buttonExists);
-        }
-        
-        if (buttonExists) {
-            claudeButtonHasExistedBefore = true;
-        }
-        
-        if (claudeButtonExists && !buttonExists) {
-            claudeGenerationInProgress = true;
-        }
-        
-        if (!claudeButtonExists && buttonExists && claudeGenerationInProgress && claudeButtonHasExistedBefore) {
-            playAlert();
-            claudeGenerationInProgress = false;
-        }
-        
-        if (buttonExists && button && !button.dataset.claudeListener) {
-            button.dataset.claudeListener = 'true';
-            
-            button.addEventListener('click', async (event) => {
-                // Record interaction but don't immediately unlock audio context
-                lastUserInteraction = Date.now();
-            });
-        }
-        
-        claudeButtonExists = buttonExists;
-    }
-    
-    setInterval(checkClaudeButton, 500);
-    checkClaudeButton();
-}
-
-// ========================================
 // INITIALIZATION
 // ========================================
 
@@ -807,8 +739,6 @@ async function init() {
     if (SITE === 'CHATGPT') {
         observeForChatGPTButton();
         startChatGPTMaintenance();
-    } else if (SITE === 'CLAUDE') {
-        setupClaudeMonitoring();
     }
 }
 

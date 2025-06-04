@@ -73,12 +73,11 @@ async function saveSettings() {
             await chrome.storage.local.set({ chatAlertSettings: currentSettings });
             
             // Notify content scripts about settings change
-            const tabs = await chrome.tabs.query({ 
+            const tabs = await chrome.tabs.query({
                 url: [
-                    "*://chatgpt.com/*", 
-                    "*://chat.openai.com/*",
-                    "*://claude.ai/*"
-                ] 
+                    "*://chatgpt.com/*",
+                    "*://chat.openai.com/*"
+                ]
             });
             for (const tab of tabs) {
                 try {
@@ -194,10 +193,9 @@ testSoundBtn.addEventListener('click', async () => {
                 const tabs = await chrome.tabs.query({ 
                     active: true, 
                     url: [
-                        "*://chatgpt.com/*", 
-                        "*://chat.openai.com/*",
-                        "*://claude.ai/*"
-                    ] 
+                        "*://chatgpt.com/*",
+                        "*://chat.openai.com/*"
+                    ]
                 });
                 
                 if (tabs.length > 0) {
@@ -257,13 +255,13 @@ testSoundBtn.addEventListener('click', async () => {
                 await createPopupCoin(currentSettings.volume);
                 showStatus('Test coin played locally (may not work when minimized)');
             } else {
-                showStatus('Please open ChatGPT or Claude to test audio files', true);
+                showStatus('Please open ChatGPT to test audio files', true);
             }
         }
         
     } catch (error) {
         console.error('All test methods failed:', error);
-        showStatus('Test failed - try opening ChatGPT or Claude first', true);
+        showStatus('Test failed - try opening ChatGPT first', true);
     }
     
     setTimeout(() => {
@@ -361,21 +359,20 @@ soundSelect.addEventListener('change', async () => {
 async function checkSupportedTabs() {
     try {
         if (typeof chrome !== 'undefined' && chrome.tabs) {
-            const tabs = await chrome.tabs.query({ 
+            const tabs = await chrome.tabs.query({
                 url: [
-                    "*://chatgpt.com/*", 
-                    "*://chat.openai.com/*",
-                    "*://claude.ai/*"
-                ] 
+                    "*://chatgpt.com/*",
+                    "*://chat.openai.com/*"
+                ]
             });
             
             const notificationStatus = getNotificationStatus();
             
             if (tabs.length === 0) {
                 if (notificationStatus.permitted) {
-                    showStatus('Open ChatGPT or Claude for best experience (notifications enabled for backup)');
+                    showStatus('Open ChatGPT for best experience (notifications enabled for backup)');
                 } else {
-                    showStatus('Open ChatGPT or Claude to enable notifications');
+                    showStatus('Open ChatGPT to enable notifications');
                 }
             } else {
                 if (!notificationStatus.permitted) {
