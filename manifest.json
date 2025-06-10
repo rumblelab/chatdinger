@@ -2,13 +2,14 @@
   "manifest_version": 3,
   "name": "Chat Dinger - Notification Sounds",
   "short_name": "Chat Dinger",
-  "version": "2.1",
+  "version": "1.0",
   "description": "Never miss when ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
   "permissions": [
     "storage",    
     "scripting",
     "activeTab",
-    "notifications"
+    "notifications",
+    "offscreen"
     ],
   "host_permissions": [
     "*://chat.openai.com/*",
@@ -24,7 +25,8 @@
   "content_scripts": [
     {
       "matches": [
-        "*://chatgpt.com/*"
+        "*://chatgpt.com/*",
+        "*://chat.openai.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",
@@ -39,10 +41,16 @@
         "sounds/ding.mp3",
         "sounds/default.wav",
         "sounds/glitch.wav",
-        "images/gentlemansagreementfinal.jpeg"
+        "sounds/coin.wav",
+        "images/gentlemansagreementfinal.jpeg",
+        "images/icon16.png",
+        "images/icon32.png",
+        "images/icon48.png",
+        "images/icon128.png"
       ],
       "matches": [
-        "*://chatgpt.com/*"
+        "*://chatgpt.com/*",
+        "*://chat.openai.com/*"
       ]
     }
   ],

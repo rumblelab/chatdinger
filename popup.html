@@ -290,8 +290,9 @@
         ::-webkit-scrollbar-button:active {
             border: 1px inset #c0c0c0;
         }
-        #ask{
-
+        #bug {
+            margin-left: auto;
+            margin-right: 4px;
         }
         #thank-you{
             display: none;
@@ -313,7 +314,7 @@
                 <div class="group-title">General</div>
                 <div class="setting-row">
                     <div class="checkbox checked" id="enabled-toggle"></div>
-                    <label class="label" for="enabled-toggle">Enable sound notifications</label>
+                    <label class="label" for="enabled-toggle">Enable notifications</label>
                 </div>
             </div>
 
@@ -340,9 +341,8 @@
                 </div>
                 <div class="setting-row">
                     <select class="dropdown" id="sound-select">
-                        <option value="coin">Coin</option>
                         <option value="ding.mp3">Ding</option>
-                        <option value="beep">Beep</option>
+                        <option value="coin.wav">Coin</option>
                         <option value="default.wav">Bloop</option>
                         <option value="alert.mp3">Alert</option>
                         <option value="boop.mp3">Boop</option>
@@ -359,6 +359,7 @@
         <div class="status-bar">
             <div class="status-panel hidden" id="status-panel">Ready</div>
             <span id="ask"><a target="_blank" href="https://chatdinger.com/review">leave a review...</a></span>
+            <span id="bug"><a target="_blank" href="https://chatdinger.com/bugs">report an issue</a></span>
         </div>
     </div>
 

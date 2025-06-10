@@ -2,406 +2,291 @@
 // Chrome Store safe version with notification support
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  
   if (message.action === 'testSound') {
     handleTestSound(message, sendResponse);
     return true; // Keep message channel open for async response
   }
-  
   if (message.action === 'playNotificationSound') {
     handleNotificationSound(message, sendResponse);
-    return true;
+    return true; // Keep message channel open for async response
   }
-  
   // Handle other messages...
-  return true;
+  return true; // Keep message channel open for other potential async responses
 });
+
+// Your proposed function - it's perfect.
+async function playSoundInOffscreen(soundFile, volume) {
+  const hasDoc = await chrome.offscreen.hasDocument();
+  if (!hasDoc) {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['AUDIO_PLAYBACK'],
+      justification: 'Play notification sound when ChatGPT tab is hidden'
+    });
+  }
+  // The offscreen document has its own message listener
+  chrome.runtime.sendMessage({ action: 'playOffscreenAudio', soundFile, volume });
+}
 
 async function handleTestSound(message, sendResponse) {
   try {
-    // Try to find active tab first
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    
     if (tabs.length === 0) {
-      sendResponse({ status: 'No active tab', error: 'Please open ChatGPT to test' });
+      sendResponse({ status: 'No active tab', error: 'Please open a tab to test sound.' });
       return;
     }
-    
     const tab = tabs[0];
-    
-    // Check if the tab URL is accessible (not chrome://, chrome-extension://, etc.)
-    if (tab.url.startsWith('chrome://') || 
-        tab.url.startsWith('chrome-extension://') || 
-        tab.url.startsWith('edge://') || 
+
+    if (tab.url.startsWith('chrome://') ||
+        tab.url.startsWith('chrome-extension://') ||
+        tab.url.startsWith('edge://') ||
         tab.url.startsWith('about:')) {
-      console.warn('Background: Cannot inject into chrome:// or restricted pages');
-      
-      // Try notification fallback for restricted pages
-      const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification');
+      console.warn('Background: Cannot inject script into restricted pages. Trying notification fallback.');
+      const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification (restricted page)');
       sendResponse({
         status: success ? 'Test notification played' : 'Cannot test on this page',
-        error: success ? null : 'Please open ChatGPT for full testing'
+        error: success ? null : 'Please open a regular webpage (like ChatGPT) for full testing',
+        success: success
       });
       return;
     }
-    
-    // Check if tab is a supported site
-    const supportedSites = ['chatgpt.com', 'chat.openai.com'];
-    const isSupported = supportedSites.some(site => tab.url.includes(site));
-    
-    if (!isSupported) {
-      console.warn('Background: Tab is not a supported chat site');
-      
-      // Try notification fallback for unsupported sites
-      const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification');
-      sendResponse({
-        status: success ? 'Test notification played' : 'Unsupported site',
-        error: success ? null : 'Works best on ChatGPT'
-      });
-      return;
-    }
-    
-    const soundFile = message.soundFile || 'default.wav';
-    const volume = message.volume || 0.7;
-    
-    // Try to inject and play sound in tab
+
+    // Sound file and volume from message or defaults
+    const soundFile = message.soundFile || 'default.wav'; // Default to a .wav file
+    const volume = message.volume !== undefined ? message.volume : 0.7;
+
+    // Try to inject and play sound in the active tab
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: playTestSoundInTab,
+        func: playTestSoundInTab, // This function is defined below and will be injected
         args: [soundFile, volume]
       });
-      
-      sendResponse({ status: 'Test sound played in tab' });
+      sendResponse({ status: `Test sound (${soundFile}) played in tab via injection`, success: true });
     } catch (error) {
-      console.error('Background: Script injection failed:', error);
-      
-      // Fallback to notification
-      const success = await createBackgroundNotification('Chat Dinger Test', 'Test sound via notification fallback');
-      sendResponse({ 
-        status: success ? 'Test notification played' : 'Test failed',
-        error: success ? null : 'Please refresh the page and try again'
+      console.error('Background: Script injection for test sound failed:', error.message);
+      // Fallback to creating a system notification if injection fails
+      const notificationMessage = `Test: ${soundFile} (injection failed)`;
+      const success = await createBackgroundNotification('Chat Dinger Test', notificationMessage);
+      sendResponse({
+        status: success ? 'Test notification played (injection fallback)' : 'Test failed, injection and notification failed',
+        error: success ? null : `Script injection failed: ${error.message}. Notification fallback also failed.`,
+        success: success
       });
     }
-    
   } catch (error) {
-    console.error('Background: Test sound error:', error);
-    sendResponse({ status: 'Test failed', error: error.message });
+    console.error('Background: General error in handleTestSound:', error.message);
+    sendResponse({ status: 'Test failed', error: error.message, success: false });
   }
 }
 
-// Function to be injected into tab
+// This function is stringified and injected into the target tab.
+// It runs in the tab's context, not the background script's context.
 function playTestSoundInTab(soundFile, volume) {
   try {
-    console.log('Chat Dinger: Playing test sound in tab:', soundFile, volume);
-    
-    // Try Web Audio API first for generated sounds
-    if (soundFile === 'beep' || soundFile === 'coin') {
-      try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Try to resume if suspended
-        if (audioContext.state === 'suspended') {
-          audioContext.resume().then(() => {
-            console.log('Chat Dinger: Audio context resumed for test');
-          }).catch(e => {
-            console.warn('Chat Dinger: Could not resume audio context:', e);
-          });
-        }
-        
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        if (soundFile === 'beep') {
-          gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-          oscillator.type = 'sine';
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.5);
-        } else if (soundFile === 'coin') {
-          gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-          oscillator.frequency.setValueAtTime(988, audioContext.currentTime);
-          oscillator.frequency.setValueAtTime(1319, audioContext.currentTime + 0.1);
-          oscillator.type = 'square';
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.5);
-        }
-        console.log('Chat Dinger: Generated sound played successfully');
-        return;
-      } catch (e) {
-        console.error('Chat Dinger: Web Audio API failed:', e);
-      }
+
+    const audio = new Audio(chrome.runtime.getURL(`sounds/${soundFile}`));
+    audio.volume = Math.min(Math.max(0, parseFloat(volume) || 0.7), 1.0);
+    audio.preload = 'auto';
+
+    if ('preservesPitch' in audio) {
+      audio.preservesPitch = false;
     }
-    
-    // Try HTML Audio for files
-    try {
-      const audio = new Audio(chrome.runtime.getURL(`sounds/${soundFile}`));
-      audio.volume = volume;
-      audio.preload = 'auto';
-      
-      // Enhanced properties for better background playback
-      if ('preservesPitch' in audio) {
-        audio.preservesPitch = false;
-      }
-      
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          console.log('Chat Dinger: Audio file played successfully');
-        }).catch(e => {
-          console.error('Chat Dinger: Audio file playback failed:', e);
-          
-          // Final fallback to beep
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then()
+        .catch(e => {
+          console.error(`Chat Dinger (Injected Script): HTML5 Audio playback failed for ${soundFile}: ${e.message} (Name: ${e.name})`);
+          // Optional: A very simple Web Audio beep as a last resort *within the tab* if HTML5 audio itself fails.
           try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') { audioContext.resume().catch(er => console.warn("Audio context resume failed", er));}
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
-            
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
-            
-            gainNode.gain.setValueAtTime(volume * 0.5, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            gainNode.gain.setValueAtTime( (parseFloat(volume) || 0.7) * 0.3, audioContext.currentTime); // Softer fallback
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
             oscillator.type = 'sine';
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.3);
-            console.log('Chat Dinger: Fallback beep played');
           } catch (fallbackError) {
-            console.error('Chat Dinger: All audio methods failed:', fallbackError);
+            console.error(`Chat Dinger (Injected Script): All audio methods (HTML5 and fallback beep) failed for ${soundFile}: ${fallbackError.message}`);
           }
         });
-      }
-    } catch (e) {
-      console.error('Chat Dinger: HTML Audio creation failed:', e);
-      
-      // Try one more fallback beep
-      try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        gainNode.gain.setValueAtTime(volume * 0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-        oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
-        oscillator.type = 'sine';
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.2);
-        console.log('Chat Dinger: Emergency fallback beep played');
-      } catch (emergencyError) {
-        console.error('Chat Dinger: Even emergency fallback failed:', emergencyError);
-      }
+    } else {
+      console.warn('Chat Dinger (Injected Script): audio.play() did not return a promise for', soundFile);
     }
-    
   } catch (e) {
-    console.error('Chat Dinger: Test sound injection completely failed:', e);
+    console.error(`Chat Dinger (Injected Script): Error during test sound playback for ${soundFile}: ${e.message}`);
   }
 }
+
 
 async function handleNotificationSound(message, sendResponse) {
   try {
+    const result = await chrome.storage.local.get(['chatAlertSettings']);
+    const settings = result.chatAlertSettings || {};
+    const soundFile = settings.selectedSound || 'default.wav';
+    const volume = settings.volume || 0.7;
+
+    // 1. Play the custom sound
+    await playSoundInOffscreen(soundFile, volume);
+
+    // 2. Show a silent visual notification
     const title = message.title || 'Chat Dinger';
     const body = message.message || 'Your chat response is ready!';
-    
-    const success = await createBackgroundNotification(title, body);
-    sendResponse({ 
-      status: success ? 'Notification sound played' : 'Notification failed',
-      success: success
-    });
+    // The 'true' here makes the notification silent
+    await createBackgroundNotification(title, body, true); 
+
+    sendResponse({ status: 'Offscreen sound and visual notification shown', success: true });
   } catch (error) {
-    console.error('Background: Notification sound handler error:', error);
-    sendResponse({ status: 'Notification sound failed', error: error.message, success: false });
+    console.error('Background: Hybrid sound/notification handler error:', error);
+    sendResponse({ status: 'Hybrid notification failed', error: error.message, success: false });
   }
 }
 
-async function createBackgroundNotification(title, message) {
+async function createBackgroundNotification(title, message, isSilent = false) {
   try {
-    const options = {
-      type: 'basic',
-      iconUrl: 'images/icon32.png',
-      title: title,
-      message: message,
-      silent: false, // Allow system notification sound
-      requireInteraction: false
-    };
-    
-    const notificationId = `chat-dinger-${Date.now()}`;
-    await chrome.notifications.create(notificationId, options);
-    
-    // Clear notification after 3 seconds
-    setTimeout(() => {
-      chrome.notifications.clear(notificationId).catch(e => {
-        console.warn('Chat Dinger: Could not clear notification:', e);
-      });
-    }, 3000);
-    
-    console.log('Chat Dinger: Notification created successfully');
-    return true;
+    // Check for notification permission first (though background can often create without explicit page permission)
+    if (chrome.notifications) {
+        const options = {
+            type: 'basic',
+            iconUrl: 'images/icon128.png', // Use a larger icon for notifications
+            title: title,
+            message: message,
+            priority: 2, // Max priority
+            silent: isSilent // Explicitly allow sound from the system notification
+        };
+        const notificationId = `chat-dinger-${Date.now()}`;
+        await chrome.notifications.create(notificationId, options);
+
+        // Clear notification after a few seconds
+        setTimeout(() => {
+            chrome.notifications.clear(notificationId).catch(e => {
+                console.warn('Chat Dinger: Could not clear notification:', notificationId, e.message);
+            });
+        }, 5000); // Increased to 5 seconds
+        return true;
+    } else {
+        console.warn("Chat Dinger: chrome.notifications API not available.");
+        return false;
+    }
   } catch (error) {
-    console.error('Chat Dinger: Notification creation failed:', error);
+    console.error('Chat Dinger: Background notification creation failed:', error);
     return false;
   }
 }
 
-// Handle notification clicks
 chrome.notifications.onClicked.addListener((notificationId) => {
-  if (notificationId.startsWith('chat-dinger')) {
+  if (notificationId.startsWith('chat-dinger-')) {
     chrome.notifications.clear(notificationId).catch(e => {
       console.warn('Chat Dinger: Could not clear clicked notification:', e);
     });
+    // Optionally, focus the ChatGPT tab or open it
   }
 });
 
-// Chrome Store Safe: Conservative keep-alive system
-let messageHandlingInProgress = false;
+// Chrome Store Safe: Conservative keep-alive system (remains unchanged)
 let heartbeatInterval = null;
 let heartbeatCount = 0;
 
 function startCriticalTaskHeartbeat() {
-  if (heartbeatInterval) return; // Already running
-  
-  messageHandlingInProgress = true;
+  if (heartbeatInterval) return;
   heartbeatCount = 0;
-  console.log('Chat Dinger: Starting critical task heartbeat');
-  
-  // Chrome Store Safe: Use storage API calls to maintain service worker
-  // This is documented as acceptable in Chrome's official docs
   heartbeatInterval = setInterval(async () => {
     try {
       heartbeatCount++;
-      
-      // Minimal storage operation to reset timeout
-      const current = await chrome.storage.local.get(['heartbeat-count']);
-      await chrome.storage.local.set({ 
+      await chrome.storage.local.set({
         'last-heartbeat': Date.now(),
-        'heartbeat-count': (current['heartbeat-count'] || 0) + 1,
+        'heartbeat-count': (await chrome.storage.local.get(['heartbeat-count']))['heartbeat-count'] || 0 + 1,
         'session-heartbeats': heartbeatCount
       });
-      
-      console.log(`Chat Dinger: Heartbeat ${heartbeatCount}`);
-      
-      // Safety: Stop after reasonable number of beats
-      if (heartbeatCount > 20) { // Max ~8 minutes of keep-alive
-        console.log('Chat Dinger: Max heartbeats reached, stopping');
+      if (heartbeatCount > 15) { // Max ~6 minutes of keep-alive (25s * 15 ~ 375s)
         stopCriticalTaskHeartbeat();
       }
-      
     } catch (error) {
-      console.error('Chat Dinger: Heartbeat failed:', error);
+      console.error('Chat Dinger: Heartbeat failed:', error.message);
+      stopCriticalTaskHeartbeat(); // Stop if error occurs
     }
-  }, 25000); // 25 seconds - well within safe limits
+  }, 25000);
 }
 
 function stopCriticalTaskHeartbeat() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
-    messageHandlingInProgress = false;
-    console.log(`Chat Dinger: Stopped heartbeat after ${heartbeatCount} beats`);
     heartbeatCount = 0;
   }
 }
 
-// Only use heartbeat when actively handling messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Start heartbeat for actions that might take a moment or involve async operations.
   if (message.action === 'testSound' || message.action === 'playNotificationSound') {
     startCriticalTaskHeartbeat();
-    
-    // Stop heartbeat after reasonable time
+    // Stop heartbeat after a reasonable time for these actions to complete.
     setTimeout(() => {
       stopCriticalTaskHeartbeat();
-    }, 10000); // 10 seconds max for test sounds
+    }, 8000); // 8 seconds max for these specific actions.
   }
-  
-  // Always return true to keep message channel open
-  return true;
+  // 'return true' is handled by the main listener at the top.
 });
 
-// Clean up on service worker events
+
 chrome.runtime.onSuspend.addListener(() => {
-  console.log('Chat Dinger: Service worker suspending, cleaning up');
   stopCriticalTaskHeartbeat();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  console.log('Chat Dinger: Service worker starting up');
-  // Reset any persistent state
-  stopCriticalTaskHeartbeat();
+  stopCriticalTaskHeartbeat(); // Ensure any orphaned heartbeat is stopped.
+  setupPeriodicCleanup(); // Run cleanup on startup
 });
 
-// Handle extension install/update
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log('Chat Dinger: Extension installed/updated:', details.reason);
-  
   if (details.reason === 'install') {
-    console.log('Chat Dinger: First time install - setting up defaults');
-    
-    // Set default settings on first install
     chrome.storage.local.set({
       chatAlertSettings: {
         enabled: true,
         volume: 0.7,
-        selectedSound: 'coin',
+        selectedSound: 'coin.wav', // Updated default
         enableNotifications: true
       }
-    }).catch(e => {
-      console.error('Chat Dinger: Failed to set default settings:', e);
-    });
+    }).catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
   }
+  // Potentially migrate settings on 'update' if schema changes.
+  setupPeriodicCleanup(); // Also run cleanup on install/update
 });
 
-// Periodic cleanup (runs every 5 minutes when service worker is active)
-// Use more conservative approach for Chrome Store safety
+
 function setupPeriodicCleanup() {
-  // Only clean up when actually needed, not on a timer
   chrome.storage.local.get(['last-cleanup']).then(result => {
     const lastCleanup = result['last-cleanup'] || 0;
     const now = Date.now();
-    
-    // Only cleanup once per hour
-    if (now - lastCleanup > 3600000) {
+    if (now - lastCleanup > 3600000) { // Once per hour
       cleanupOldStorage();
     }
-  }).catch(e => {
-    console.warn('Chat Dinger: Cleanup check failed:', e);
-  });
+  }).catch(e => console.warn('Chat Dinger: Cleanup check failed:', e.message));
 }
 
 function cleanupOldStorage() {
   chrome.storage.local.get(null).then(items => {
     const now = Date.now();
     const keysToRemove = [];
-    
     for (const [key, value] of Object.entries(items)) {
-      // Remove old heartbeat entries (older than 1 hour)
-      if (key.startsWith('last-heartbeat') && typeof value === 'number' && (now - value) > 3600000) {
+      if ((key.startsWith('last-heartbeat') || key.startsWith('heartbeat-count') || key.startsWith('session-heartbeats')) &&
+          typeof value === 'number' && (now - items['last-heartbeat'] > 7200000)) { // Older than 2 hours
         keysToRemove.push(key);
       }
     }
-    
     if (keysToRemove.length > 0) {
       chrome.storage.local.remove(keysToRemove);
-      console.log(`Chat Dinger: Cleaned up ${keysToRemove.length} old storage entries`);
     }
-    
-    // Update last cleanup time
     chrome.storage.local.set({ 'last-cleanup': now });
-  }).catch(e => {
-    console.warn('Chat Dinger: Storage cleanup failed:', e);
-  });
+  }).catch(e => console.warn('Chat Dinger: Storage cleanup failed:', e.message));
 }
 
-// Run cleanup on startup
+// Initial setup
 setupPeriodicCleanup();
-
-// Chrome Store Safe: Log extension activity for debugging (not resource intensive)
-console.log('Chat Dinger: Background script loaded - Chrome Store safe version');
-console.log('Chat Dinger: Service worker lifecycle managed with conservative keep-alive');
