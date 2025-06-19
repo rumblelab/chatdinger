@@ -1,6 +1,8 @@
 # chatdinger 🔔
 
-An unofficial Chrome extension that adds notification sounds to your AI chats—because let's be honest, this should just be a built-in feature.
+the Chrome extension that adds notification sounds to ChatGPT—because let's be honest, this should just be a built-in feature.
+
+OpenAI, if you are reading this, put me out of my misery. make this a native feature on desktop. please.
 
 ## What it does
 Makes your chats go "ding" when responses come in. Currently works for:
@@ -12,6 +14,10 @@ More platforms coming eventually (maybe).
 There's no point making this an official Chrome Web Store extension when chatgpt.com should really just add this feature themselves. Until they do, here we are.
 
 ## Installation
+
+go to https://chatdinger.com
+
+or download the dev version...
 
 1. **Download**: Click the green "Code" button above → "Download ZIP"
 2. **Extract**: Double-click the ZIP file (Mac) or right-click → "Extract All" (Windows)

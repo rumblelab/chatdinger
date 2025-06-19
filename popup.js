@@ -12,7 +12,7 @@ let onChatGPTPage = false;
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'coin.wav', // Default to a .wav file
+    selectedSound: 'coin.mp3', // Default to a .wav file
     enableNotifications: true // For OS-level notifications fallback
 };
 

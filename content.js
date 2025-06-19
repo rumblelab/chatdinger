@@ -11,7 +11,7 @@ let lastUserInteraction = 0;
 let settings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'coin.wav'
+    selectedSound: 'coin.mp3'
 };
 let canPlayAlertSound = true;
 
@@ -83,17 +83,17 @@ function showThanksPopup() {
     popup.innerHTML = `
         <div style="margin-bottom: 16px;">
             <div style="font-size: 48px; margin-bottom: 8px;"></div>
-            <h2 style="margin: 0; color: #333; font-size: 20px;">I know now's a bad time...</h2>
+            <h2 style="margin: 0; color: #333; font-size: 20px;">hey! real quick...</h2>
             <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            BUT, next time you're waiting on the dinger, consider leaving us a review.
+            i know it's a bad time, but next time you hear that sweet ding, I want you to think about leaving us a review.
             </p>
         </div>
-        <img style="width: 100%; max-width: 200px; margin-bottom: 16px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
+        <img style="display: block; margin: 0 auto 16px; width: 100%; max-width: 200px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
             in exchange, we promise to stop annoying you with popups like this.
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            (the review link is in the popup where you set your sounds.)
+            in-fact, cause, I know you're good for it, you'll never see this popup again.
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
             <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
@@ -158,7 +158,6 @@ function trackUserInteraction() {
 
 async function playAudioFile(soundFile, volume) {
     try {
-        console.log(`Chat Dinger: Attempting to play sound file: ${soundFile} at volume: ${volume}`);
         if (!chrome.runtime?.id) { return false; }
         const soundUrl = chrome.runtime.getURL(`sounds/${soundFile}`);
         if (!soundUrl) { console.error('Chat Dinger: Could not get URL for sound file:', soundFile); return false; }
@@ -204,12 +203,11 @@ async function playSound(soundFile = null, volume = null) {
     const audioVolume = volume !== null ? settings.volume : settings.volume;
     let effectiveSoundFile = selectedSoundSetting;
 
-    if (selectedSoundSetting === 'beep' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'beep.wav';
-    else if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'coin.wav';
+    if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'coin.mp3';
     
     if (!effectiveSoundFile || typeof effectiveSoundFile !== 'string' || !effectiveSoundFile.includes('.')) {
-        console.error('Chat Dinger: Invalid sound file, using default.wav:', effectiveSoundFile);
-        effectiveSoundFile = 'default.wav';
+        console.error('Chat Dinger: Invalid sound file, using cryptic.wav:', effectiveSoundFile);
+        effectiveSoundFile = 'cryptic.wav';
     }
 
     // If page is hidden or not visible, prioritize background notification

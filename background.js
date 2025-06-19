@@ -52,7 +52,7 @@ async function handleTestSound(message, sendResponse) {
     }
 
     // Sound file and volume from message or defaults
-    const soundFile = message.soundFile || 'default.wav'; // Default to a .wav file
+    const soundFile = message.soundFile || 'cryptic.wav'; // Default to a .wav file
     const volume = message.volume !== undefined ? message.volume : 0.7;
 
     // Try to inject and play sound in the active tab
@@ -130,7 +130,7 @@ async function handleNotificationSound(message, sendResponse) {
   try {
     const result = await chrome.storage.local.get(['chatAlertSettings']);
     const settings = result.chatAlertSettings || {};
-    const soundFile = settings.selectedSound || 'default.wav';
+    const soundFile = settings.selectedSound || 'cryptic.wav';
     const volume = settings.volume || 0.7;
 
     // 1. Play the custom sound
@@ -251,7 +251,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       chatAlertSettings: {
         enabled: true,
         volume: 0.7,
-        selectedSound: 'coin.wav', // Updated default
+        selectedSound: 'coin.mp3', // Updated default
         enableNotifications: true
       }
     }).catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
