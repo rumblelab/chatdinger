@@ -181,14 +181,41 @@ async function createBackgroundNotification(title, message, isSilent = false) {
   }
 }
 
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (notificationId.startsWith('chat-dinger-')) {
+chrome.notifications.onClicked.addListener(async (notificationId) => {
+  if (!notificationId.startsWith('chat-dinger-')) {
+    return;
+  }
+
+  const chatGPTUrls = ["*://chat.openai.com/*", "*://chatgpt.com/*"];
+
+  try {
+    const tabs = await chrome.tabs.query({ url: chatGPTUrls });
+
+    if (tabs.length > 0) {
+      // A ChatGPT tab is open, let's focus it.
+      // Sort by last accessed time to pick the most recent one.
+      const targetTab = tabs.sort((a, b) => b.lastAccessed - a.lastAccessed)[0];
+      
+      // First, focus the window that the tab is in.
+      await chrome.windows.update(targetTab.windowId, { focused: true });
+      // Then, make the tab active within its window.
+      await chrome.tabs.update(targetTab.id, { active: true });
+    } else {
+      // No ChatGPT tab is open, create a new one.
+      await chrome.tabs.create({ url: 'https://chatgpt.com/' });
+    }
+  } catch (error) {
+    console.error('Chat Dinger: Error handling notification click:', error);
+    // As a robust fallback, just create a new tab on error.
+    await chrome.tabs.create({ url: 'https://chatgpt.com/' });
+  } finally {
+    // Always clear the notification after it's been handled.
     chrome.notifications.clear(notificationId).catch(e => {
-      console.warn('Chat Dinger: Could not clear clicked notification:', e);
+        console.warn('Chat Dinger: Could not clear clicked notification:', notificationId, e.message);
     });
-    // Optionally, focus the ChatGPT tab or open it
   }
 });
+
 
 // Chrome Store Safe: Conservative keep-alive system (remains unchanged)
 let heartbeatInterval = null;
