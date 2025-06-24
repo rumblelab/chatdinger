@@ -81,26 +81,26 @@ function showThanksPopup() {
     style.textContent = `@keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`;
     document.head.appendChild(style);
     popup.innerHTML = `
-        <div style="margin-bottom: 16px;">
-            <div style="font-size: 48px; margin-bottom: 8px;"></div>
-            <h2 style="margin: 0; color: #333; font-size: 20px;">hey! real quick...</h2>
-            <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            you have a friend that is scrolling tiktok unaware that ai generated garbage is done cooking...
-            </p>
-            <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            they need your help. next time you hear that ding, i want you to think of them.
-            </p>
-        </div>
+    <div style="margin-bottom: 16px;">
+        <div style="font-size: 48px; margin-bottom: 8px;"></div>
+        <h2 style="margin: 0; color: #333; font-size: 20px;">hey! real quick...</h2>
+        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            no more annoying popups if you make a deal with me.
+        </p>
         <img style="display: block; margin: 0 auto 16px; width: 100%; max-width: 200px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            because if you share chat dinger with them, they will think of you.
+            today, one of your friends will waste precious time having forgotten that their ai is done cooking...again.
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            because if you share this with them, they
+            they need your help. and every time you hear that ding, i want you to think of them.
         </p>
-        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
-            <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
-        </div>
+        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            i want you to think of them. and me. and how if you share, they will think of you every time they hear the ding.
+        </p>
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
+        <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
+    </div>
     `;
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
