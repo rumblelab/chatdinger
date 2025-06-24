@@ -85,15 +85,18 @@ function showThanksPopup() {
             <div style="font-size: 48px; margin-bottom: 8px;"></div>
             <h2 style="margin: 0; color: #333; font-size: 20px;">hey! real quick...</h2>
             <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            i know it's a bad time, but next time you hear that sweet ding, I want you to think about leaving us a review.
+            you have a friend that is scrolling tiktok unaware that ai generated garbage is done cooking...
+            </p>
+            <p style="color: #666; margin: 16px 0; line-height: 1.4;">
+            they need your help. next time you hear that ding, i want you to think of them.
             </p>
         </div>
         <img style="display: block; margin: 0 auto 16px; width: 100%; max-width: 200px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            in exchange, we promise to stop annoying you with popups like this.
+            because if you share chat dinger with them, they will think of you.
         </p>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            in-fact, cause, I know you're good for it, you'll never see this popup again.
+            because if you share this with them, they
         </p>
         <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
             <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
@@ -142,7 +145,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings = { ...settings, ...message.settings };
             sendResponse({ status: 'Settings updated in content script', success: true });
             break;
-        // START: NEW CASE
         case 'selectorsUpdated':
             console.log('Chat Dinger: Received updated selectors.', message.selectors);
             currentChatGptSelectors = message.selectors;
@@ -150,7 +152,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             observeForChatGPTButton(); 
             sendResponse({ status: 'Selectors updated and applied', success: true });
             break;
-        // END: NEW CASE
         case 'testSound':
             playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume)
                 .then(success => sendResponse({ status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', success }))
@@ -262,20 +263,20 @@ async function playAlert() {
     setTimeout(() => { canPlayAlertSound = true; }, 2000);
 }
 
-// ========================================
-// CHATGPT LOGIC (Unchanged from previous complete response)
-// ========================================
+
 const DEFAULT_CHATGPT_SELECTORS = [
+    // 1. Most stable & generic: any test-id that *ends* with send-/stop-button
+    'button[data-testid$="send-button"]',
+    'button[data-testid$="stop-button"]',
+  
+    // 2. Legacy single-id build (fast fallback, but only in a few buckets)
     '#composer-submit-button',
-    'button[data-testid="send-button"]',
-    'button[data-testid="composer-send-button"]',
-    'button[data-testid="composer-stop-button"]',
-    'button[class*="bottom"] > svg',
-    'form button[type="submit"]',
-    'textarea ~ button:not([aria-label*="Attach file"])',
-    'button:has(svg[data-icon="send"])',
-    'button:has(svg[data-icon="stop"])'
-];
+  
+    // 3. Aria-label fallbacks (keep, but low priority)
+    'button[aria-label="Send prompt"]:has(svg)',
+    'button[aria-label="Stop streaming"]:has(svg)'
+  ];
+
 let currentChatGptSelectors = [...DEFAULT_CHATGPT_SELECTORS];
 
 function getChatGPTButtonState(button) {
@@ -289,8 +290,8 @@ function getChatGPTButtonState(button) {
         const path = svg.querySelector('path');
         if (path) svgPathData = (path.getAttribute('d') || '').toLowerCase();
     }
-    const hasStopIndicator = ['stop', 'cancel', 'interrupt'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword)) || (svgPathData.includes('m6') && svgPathData.includes('h12v12h-12z'));
-    const hasSendIndicator = ['send', 'submit'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword)) || (svgPathData.includes('m2') && svgPathData.includes('l20') && svgPathData.includes('l-20'));
+    const hasStopIndicator = ['stop', 'cancel', 'interrupt'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword)) || (svgPathData.includes('m4.5') && svgPathData.includes('h14.25')); // Adjusted to match the stop button svg
+    const hasSendIndicator = ['send', 'submit'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword)) || (svgPathData.includes('m8.99') && svgPathData.includes('l9.29')); // Adjusted to match the send button svg
     let isGenerating = hasStopIndicator || (isDisabled && !hasSendIndicator);
     if (hasSendIndicator && !isDisabled) isGenerating = false;
     if (hasStopIndicator && !isDisabled) isGenerating = true;
@@ -355,20 +356,30 @@ function startMonitoringChatGPTButton(button) {
     }
 }
 
+// START: 2️⃣ --- FIXED FUNCTION ---
+// Removed the call to the undefined `isSendOrStop` function, which was causing an error.
 function findChatGPTButton() {
     for (const selector of currentChatGptSelectors) {
+        let buttons;
         try {
-            const buttons = document.querySelectorAll(selector);
-            for (const button of buttons) {
-                if (button.offsetHeight > 0 && button.offsetWidth > 0) {
-                    const state = getChatGPTButtonState(button);
-                    if (state.hasSendIndicator || state.hasStopIndicator || (state.isDisabled && button.type === 'submit')) return button;
-                }
+            buttons = document.querySelectorAll(selector);
+        }
+        catch {
+            continue; // malformed selector ⇒ skip
+        }
+
+        if (!buttons.length) continue; // nothing matched ⇒ next rule
+
+        for (const button of buttons) {
+            // Check if the button is visible on the page.
+            if (button.offsetWidth && button.offsetHeight) {
+                return button; // Return the first visible button that matches.
             }
-        } catch (e) { /* console.warn(`Chat Dinger: Selector error "${selector}":`, e.message); */ }
+        }
     }
     return null;
 }
+// END: 2️⃣ --- FIXED FUNCTION ---
 
 function observeForChatGPTButton() {
     if (chatgptInitialButtonFinderObserver) chatgptInitialButtonFinderObserver.disconnect();

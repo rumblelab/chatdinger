@@ -14,15 +14,11 @@ const restoreSelectorsBtn = document.getElementById('restore-selectors-btn');
 let onChatGPTPage = false;
 
 const DEFAULT_CHATGPT_SELECTORS = [
+    'button[data-testid$="send-button"]',
+    'button[data-testid$="stop-button"]',
     '#composer-submit-button',
-    'button[data-testid="send-button"]',
-    'button[data-testid="composer-send-button"]',
-    'button[data-testid="composer-stop-button"]',
-    'button[class*="bottom"] > svg',
-    'form button[type="submit"]',
-    'textarea ~ button:not([aria-label*="Attach file"])',
-    'button:has(svg[data-icon="send"])',
-    'button:has(svg[data-icon="stop"])'
+    'button[aria-label="Send prompt"]:has(svg)',
+    'button[aria-label="Stop streaming"]:has(svg)'
 ];
 
 const defaultSettings = {
