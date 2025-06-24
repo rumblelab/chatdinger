@@ -116,9 +116,14 @@ function showThanksPopup() {
 async function loadSettings() {
     try {
         if (!chrome.runtime?.id) { return; }
-        const result = await chrome.storage.local.get(['chatAlertSettings']);
+        const result = await chrome.storage.local.get(['chatAlertSettings', 'customSelectors']);
         if (result.chatAlertSettings) {
             settings = { ...settings, ...result.chatAlertSettings };
+        }
+        if (result.customSelectors && result.customSelectors.length > 0) {
+            currentChatGptSelectors = result.customSelectors;
+        } else {
+            currentChatGptSelectors = [...DEFAULT_CHATGPT_SELECTORS];
         }
     } catch (error) {
         if (!error.message.includes('Extension context invalidated')) {
@@ -137,6 +142,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings = { ...settings, ...message.settings };
             sendResponse({ status: 'Settings updated in content script', success: true });
             break;
+        // START: NEW CASE
+        case 'selectorsUpdated':
+            console.log('Chat Dinger: Received updated selectors.', message.selectors);
+            currentChatGptSelectors = message.selectors;
+            // Re-initialize the button finding logic with the new selectors
+            observeForChatGPTButton(); 
+            sendResponse({ status: 'Selectors updated and applied', success: true });
+            break;
+        // END: NEW CASE
         case 'testSound':
             playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume)
                 .then(success => sendResponse({ status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', success }))
@@ -251,7 +265,7 @@ async function playAlert() {
 // ========================================
 // CHATGPT LOGIC (Unchanged from previous complete response)
 // ========================================
-const CHATGPT_SELECTORS = [
+const DEFAULT_CHATGPT_SELECTORS = [
     '#composer-submit-button',
     'button[data-testid="send-button"]',
     'button[data-testid="composer-send-button"]',
@@ -262,6 +276,7 @@ const CHATGPT_SELECTORS = [
     'button:has(svg[data-icon="send"])',
     'button:has(svg[data-icon="stop"])'
 ];
+let currentChatGptSelectors = [...DEFAULT_CHATGPT_SELECTORS];
 
 function getChatGPTButtonState(button) {
     if (!button || !button.getAttribute) return { isGenerating: false, ariaLabel: '', textContent: '', isDisabled: true, hasSendIndicator: false, hasStopIndicator: false };
@@ -341,7 +356,7 @@ function startMonitoringChatGPTButton(button) {
 }
 
 function findChatGPTButton() {
-    for (const selector of CHATGPT_SELECTORS) {
+    for (const selector of currentChatGptSelectors) {
         try {
             const buttons = document.querySelectorAll(selector);
             for (const button of buttons) {

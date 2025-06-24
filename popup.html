@@ -352,6 +352,22 @@
                     <button class="button" id="test-sound">Test</button>
                 </div>
             </div>
+            <div class="group-box">
+                <div class="group-title">Advanced Settings</div>
+                <div class="setting-row">
+                    <label class="label" for="selector-input">
+                        ChatGPT Button Selectors 
+                        (<a href="https://chatdinger.com/selectors" target="_blank">what are these?</a>)
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <textarea id="selector-input" rows="5" style="width: 100%; font-family: monospace; font-size: 10px; border: 2px inset #c0c0c0; background: #fff;"></textarea>
+                </div>
+                <div class="setting-row" style="justify-content: space-between;">
+                    <button class="button" id="restore-selectors-btn">Restore Defaults</button>
+                    <button class="button" id="save-selectors-btn">Save Selectors</button>
+                </div>
+            </div>
 
             <div id="status-message" class="status-panel hidden" style="margin: 8px 0; text-align: center;"></div>
         </div>

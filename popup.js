@@ -7,7 +7,23 @@ const soundSelect = document.getElementById('sound-select');
 const testSoundBtn = document.getElementById('test-sound');
 const statusMessage = document.getElementById('status-message');
 const volumeThumb = document.getElementById('volume-thumb');
+const selectorInput = document.getElementById('selector-input');
+const saveSelectorsBtn = document.getElementById('save-selectors-btn');
+const restoreSelectorsBtn = document.getElementById('restore-selectors-btn');
+
 let onChatGPTPage = false;
+
+const DEFAULT_CHATGPT_SELECTORS = [
+    '#composer-submit-button',
+    'button[data-testid="send-button"]',
+    'button[data-testid="composer-send-button"]',
+    'button[data-testid="composer-stop-button"]',
+    'button[class*="bottom"] > svg',
+    'form button[type="submit"]',
+    'textarea ~ button:not([aria-label*="Attach file"])',
+    'button:has(svg[data-icon="send"])',
+    'button:has(svg[data-icon="stop"])'
+];
 
 const defaultSettings = {
     enabled: true,
@@ -57,13 +73,16 @@ async function requestNotificationPermission() {
 async function loadSettings() {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage) {
-            const result = await chrome.storage.local.get(['chatAlertSettings']);
+            const result = await chrome.storage.local.get(['chatAlertSettings', 'customSelectors']);
             if (result.chatAlertSettings) {
                 currentSettings = { ...defaultSettings, ...result.chatAlertSettings };
             }
+            // Load custom selectors or use defaults
+            const selectors = result.customSelectors || DEFAULT_CHATGPT_SELECTORS;
+            selectorInput.value = selectors.join('\n');
         }
         updateUI();
-        validateSettings(); // Call validate settings after UI is potentially updated
+        validateSettings();
     } catch (error) {
         console.error("Chat Dinger: Error loading settings:", error);
         showStatus('Failed to load settings', true);
@@ -340,6 +359,51 @@ async function setTestButtonState() {
     testSoundBtn.disabled = false;
     testSoundBtn.title = 'Test the selected sound';
   }
+
+  saveSelectorsBtn.addEventListener('click', async () => {
+    const newSelectors = selectorInput.value
+        .split('\n')
+        .map(s => s.trim()) // Remove leading/trailing whitespace
+        .filter(s => s); // Remove any empty lines
+
+    if (newSelectors.length === 0) {
+        showStatus('Cannot save empty selector list.', true);
+        return;
+    }
+
+    try {
+        await chrome.storage.local.set({ customSelectors: newSelectors });
+
+        // Notify the active content scripts of the change
+        const tabs = await chrome.tabs.query({
+            url: ["*://chatgpt.com/*", "*://chat.openai.com/*"]
+        });
+
+        for (const tab of tabs) {
+            try {
+                await chrome.tabs.sendMessage(tab.id, {
+                    action: 'selectorsUpdated',
+                    selectors: newSelectors
+                });
+            } catch (e) {
+                console.warn(`Could not send selector update to tab ${tab.id}. It might not be ready.`);
+            }
+        }
+        showStatus('Selectors saved and applied!', false);
+    } catch (error) {
+        console.error("Chat Dinger: Error saving selectors:", error);
+        showStatus('Failed to save selectors.', true);
+    }
+});
+
+restoreSelectorsBtn.addEventListener('click', async () => {
+    // Populate the textarea with the defaults
+    selectorInput.value = DEFAULT_CHATGPT_SELECTORS.join('\n');
+    // Trigger the save functionality to persist and apply them
+    saveSelectorsBtn.click();
+    showStatus('Default selectors restored and saved.');
+});
+
 
 async function init() {
     await loadSettings(); // Loads settings, updates UI, validates
