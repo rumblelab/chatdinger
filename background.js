@@ -278,12 +278,11 @@ chrome.runtime.onInstalled.addListener((details) => {
       chatAlertSettings: {
         enabled: true,
         volume: 0.7,
-        selectedSound: 'coin.mp3', // Updated default
+        selectedSound: 'cryptic.wav', // Updated default
         enableNotifications: true
       }
     }).catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
   }
-  // Potentially migrate settings on 'update' if schema changes.
   setupPeriodicCleanup(); // Also run cleanup on install/update
 });
 

@@ -11,7 +11,7 @@ let lastUserInteraction = 0;
 let settings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'coin.mp3'
+    selectedSound: 'cryptic.wav'
 };
 let canPlayAlertSound = true;
 
@@ -83,24 +83,22 @@ function showThanksPopup() {
     popup.innerHTML = `
     <div style="margin-bottom: 16px;">
         <div style="font-size: 48px; margin-bottom: 8px;"></div>
-        <h2 style="margin: 0; color: #333; font-size: 20px;">hey! real quick...</h2>
+        <h2 style="margin: 0; color: #333; font-size: 20px;">Quick deal?</h2>
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            no more annoying popups if you make a deal with me.
+            No more annoying popups. Just a simple handshake between us.
         </p>
         <img style="display: block; margin: 0 auto 16px; width: 100%; max-width: 200px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
         <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            today, one of your friends will waste precious time having forgotten that their ai is done cooking...again.
+            Tell one friend about ChatDinger. That’s it. Do that, and I’ll never bug you with another popup again.
         </p>
-        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            they need your help. and every time you hear that ding, i want you to think of them.
-        </p>
-        <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-            i want you to think of them. and me. and how if you share, they will think of you every time they hear the ding.
-        </p>
+
     </div>
     <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
         <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
     </div>
+    <p style="color: #666; margin: 16px 0; line-height: 1.4; font-size: 10px">
+        This is your one and only popup. You’ll still hear the ding, but you might hear guilt if you don’t share. 😉
+    </p>
     `;
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
@@ -153,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ status: 'Selectors updated and applied', success: true });
             break;
         case 'testSound':
-            playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume)
+            playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume, true)
                 .then(success => sendResponse({ status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', success }))
                 .catch(error => sendResponse({ status: 'Test sound error in content script', success: false, error: error.message }));
             return true;
@@ -213,12 +211,13 @@ async function requestBackgroundNotification(title, messageText) {
 }
 
 
-async function playSound(soundFile = null, volume = null) {
+async function playSound(soundFile = null, volume = null, isTest = false) {
+    if (!settings.notifyOnActiveTab && !document.hidden && !isTest) return;
     const selectedSoundSetting = soundFile || settings.selectedSound;
     const audioVolume = volume !== null ? settings.volume : settings.volume;
     let effectiveSoundFile = selectedSoundSetting;
 
-    if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'coin.mp3';
+    if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'cryptic.wav';
     
     if (!effectiveSoundFile || typeof effectiveSoundFile !== 'string' || !effectiveSoundFile.includes('.')) {
         console.error('Chat Dinger: Invalid sound file, using cryptic.wav:', effectiveSoundFile);
@@ -243,6 +242,7 @@ async function playSound(soundFile = null, volume = null) {
 
 async function playAlert() {
     if (!settings.enabled) return;
+    if (!settings.notifyOnActiveTab && !document.hidden) return;
     if (!canPlayAlertSound) return;
     canPlayAlertSound = false;
 
@@ -356,8 +356,6 @@ function startMonitoringChatGPTButton(button) {
     }
 }
 
-// START: 2️⃣ --- FIXED FUNCTION ---
-// Removed the call to the undefined `isSendOrStop` function, which was causing an error.
 function findChatGPTButton() {
     for (const selector of currentChatGptSelectors) {
         let buttons;
@@ -379,7 +377,6 @@ function findChatGPTButton() {
     }
     return null;
 }
-// END: 2️⃣ --- FIXED FUNCTION ---
 
 function observeForChatGPTButton() {
     if (chatgptInitialButtonFinderObserver) chatgptInitialButtonFinderObserver.disconnect();

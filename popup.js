@@ -10,6 +10,7 @@ const volumeThumb = document.getElementById('volume-thumb');
 const selectorInput = document.getElementById('selector-input');
 const saveSelectorsBtn = document.getElementById('save-selectors-btn');
 const restoreSelectorsBtn = document.getElementById('restore-selectors-btn');
+const activeTabToggle = document.getElementById('active-tab-toggle');
 
 let onChatGPTPage = false;
 
@@ -24,7 +25,8 @@ const DEFAULT_CHATGPT_SELECTORS = [
 const defaultSettings = {
     enabled: true,
     volume: 0.7,
-    selectedSound: 'coin.mp3', // Default to a .wav file
+    selectedSound: 'cryptic.wav', 
+    notifyOnActiveTab: true,
     enableNotifications: true // For OS-level notifications fallback
 };
 
@@ -85,13 +87,18 @@ async function loadSettings() {
     }
 }
 
+async function getChatGPTTabs() {
+    // This query finds all currently open ChatGPT tabs.
+    return await chrome.tabs.query({
+        url: ["*://chatgpt.com/*", "*://chat.openai.com/*"]
+    });
+}
+
 async function saveSettings() {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.runtime?.id) {
             await chrome.storage.local.set({ chatAlertSettings: currentSettings });
-            const tabs = await chrome.tabs.query({
-                url: ["*://chatgpt.com/*", "*://chat.openai.com/*"]
-            });
+            const tabs = await getChatGPTTabs(); 
             for (const tab of tabs) {
                 try {
                     // console.log("Popup: Sending settingsUpdated to tabId:", tab.id);
@@ -117,6 +124,7 @@ async function saveSettings() {
 
 function updateUI() {
     enabledToggle.classList.toggle('checked', currentSettings.enabled);
+    activeTabToggle.classList.toggle('checked', currentSettings.notifyOnActiveTab);
     const volumePercent = Math.round(currentSettings.volume * 100);
     volumeSlider.value = volumePercent;
     updateVolumeDisplay(); // This will also set thumb
@@ -328,6 +336,13 @@ soundSelect.addEventListener('change', async () => {
     showStatus(`Sound changed to: ${soundSelect.options[soundSelect.selectedIndex].text}`);
 });
 
+activeTabToggle.addEventListener('click', async function() {
+    this.classList.toggle('checked');
+    currentSettings.notifyOnActiveTab = this.classList.contains('checked');
+    await saveSettings();
+    showStatus(`Notify on active tab ${currentSettings.notifyOnActiveTab ? 'Enabled' : 'Disabled'}`);
+});
+
 
 document.querySelectorAll('.control-btn').forEach(btn => {
     btn.addEventListener('mousedown', function() { this.style.borderStyle = 'inset'; });
@@ -371,9 +386,7 @@ async function setTestButtonState() {
         await chrome.storage.local.set({ customSelectors: newSelectors });
 
         // Notify the active content scripts of the change
-        const tabs = await chrome.tabs.query({
-            url: ["*://chatgpt.com/*", "*://chat.openai.com/*"]
-        });
+        const tabs = await getChatGPTTabs();
 
         for (const tab of tabs) {
             try {
@@ -405,6 +418,12 @@ async function init() {
     await loadSettings(); // Loads settings, updates UI, validates
     await setTestButtonState(); 
     updateVolumeDisplay(); // Ensure thumb is correct on initial load after container is sized
+    const advancedSettings = document.getElementById('advanced-settings');
+    const advancedSettingsTitle = advancedSettings.querySelector('.group-title');
+
+    advancedSettingsTitle.addEventListener('click', () => {
+        advancedSettings.classList.toggle('expanded');
+    });
 }
 
 if (document.readyState === 'loading') {

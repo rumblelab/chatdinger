@@ -28,7 +28,7 @@
         }
 
         .title-bar {
-            background: linear-gradient(90deg, #0000ff 0%, #1084d0 100%);
+            background: #7943bf;
             color: white;
             padding: 2px;
             font-size: 11px;
@@ -210,10 +210,10 @@
             font-family: 'MS Sans Serif', Tahoma, sans-serif;
             cursor: pointer;
             padding: 2px 20px 2px 4px;
-            appearance: none;
-            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=');
+            background-image: url("data:image/gif;base64,R0lGODlhDAAIAKECAAAAAP///wAAACH5BAAAAAAALAAAAAAMAAgAAAIRjI+pq+D9hADs=");
             background-repeat: no-repeat;
-            background-position: right 4px center;
+            background-position: right 6px center;
+            background-size: 8px 6px;
         }
 
         .dropdown:focus {
@@ -297,6 +297,34 @@
         #thank-you{
             display: none;
         }
+        .collapsible .group-title {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+}
+
+.collapsible .arrow {
+    display: inline-block;
+    margin-right: 6px;
+    transition: transform 0.15s ease-in-out;
+}
+
+/* This rule rotates the arrow when the section is expanded */
+.collapsible.expanded .arrow {
+    transform: rotate(90deg);
+}
+
+/* This rule hides the content by default */
+.collapsible-content {
+    display: none;
+    padding-top: 8px; /* Adds a little space below the title */
+}
+
+/* This rule shows the content when the section is expanded */
+.collapsible.expanded .collapsible-content {
+    display: block;
+}
     </style>
 </head>
 <body>
@@ -335,37 +363,43 @@
             </div>
 
             <div class="group-box">
-                <div class="group-title">Sound scheme</div>
-                <div class="setting-row">
-                    <label class="label">Event:</label>
-                </div>
+                <div class="group-title">Notification Sound</div>
                 <div class="setting-row">
                     <select class="dropdown" id="sound-select">
+                        <option value="cryptic.wav">Bloop</option>
                         <option value="ding.mp3">Ding</option>
                         <option value="coin.mp3">Coin</option>
-                        <option value="cryptic.wav">Bloop</option>
                         <option value="alert.mp3">Alert</option>
                         <option value="boop.mp3">Boop</option>
+                        <option value="meow12.wav">Meow</option>
                     </select>
                 </div>
                 <div class="setting-row">
                     <button class="button" id="test-sound">Test</button>
                 </div>
             </div>
-            <div class="group-box">
-                <div class="group-title">Custom Selectors</div>
-                <div class="setting-row">
-                    <label class="label" for="selector-input">
-                        Broken Dinger?
-                        (<a href="https://chatdinger.com/selectors" target="_blank">override selectors.</a>)
-                    </label>
+            <div class="group-box collapsible" id="advanced-settings">
+                <div class="group-title">
+                    <span class="arrow">▶</span> Advanced Settings
                 </div>
-                <div class="setting-row">
-                    <textarea id="selector-input" rows="5" style="width: 100%; font-family: monospace; font-size: 10px; border: 2px inset #c0c0c0; background: #fff;"></textarea>
-                </div>
-                <div class="setting-row" style="justify-content: space-between;">
-                    <button class="button" id="restore-selectors-btn">Restore Defaults</button>
-                    <button class="button" id="save-selectors-btn">Save Selectors</button>
+                <div class="collapsible-content">
+                    <div class="setting-row">
+                        <div class="checkbox" id="active-tab-toggle"></div>
+                        <label class="label" for="active-tab-toggle">Enable notifications when ChatGPT is active</label>
+                    </div>
+                    <div class="setting-row">
+                        <label class="label" for="selector-input">
+                            Broken Dinger?
+                            (<a href="https://chatdinger.com/selectors" target="_blank">override selectors.</a>)
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <textarea id="selector-input" rows="5" style="width: 100%; font-family: monospace; font-size: 10px; border: 2px inset #c0c0c0; background: #fff;"></textarea>
+                    </div>
+                    <div class="setting-row" style="justify-content: space-between;">
+                        <button class="button" id="restore-selectors-btn">Restore Defaults</button>
+                        <button class="button" id="save-selectors-btn">Save Selectors</button>
+                    </div>
                 </div>
             </div>
 
