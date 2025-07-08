@@ -325,6 +325,49 @@
 .collapsible.expanded .collapsible-content {
     display: block;
 }
+
+.info-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background-color: #000080;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    font-size: 9px;
+    line-height: 12px;
+    cursor: pointer;
+    position: relative;
+}
+
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: #f0f0f0;
+    color: #000;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px;
+    position: absolute;
+    z-index: 100;
+    bottom: -225%;
+    left: 40%;
+    margin-left: -120px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    border: 1px solid #000;
+    transform: translateX(-50%);
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
     </style>
 </head>
 <body>
@@ -347,6 +390,10 @@
                 <div class="setting-row">
                     <div class="checkbox" id="active-tab-toggle"></div>
                     <label class="label" for="active-tab-toggle">Notify when ChatGPT is active tab</label>
+                    <div class="tooltip">
+                        <span class="info-icon">i</span>
+                        <span class="tooltiptext">When enabled, you will hear a sound even if the ChatGPT tab is currently active. Disable this to only be notified when ChatGPT is in a background tab.</span>
+                    </div>
                 </div>
             </div>
 
