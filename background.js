@@ -14,7 +14,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true; // Keep message channel open for other potential async responses
 });
 
-// Your proposed function - it's perfect.
+chrome.runtime.onInstalled.addListener(() => {
+  // Also run immediately on install
+  fetchAndUpdateSelectors(); 
+  // Set an alarm to run periodically
+  chrome.alarms.create('updateSelectorsAlarm', {
+      periodInMinutes: 1440 // Once a day
+  });
+});
+
+chrome.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === 'updateSelectorsAlarm') {
+      fetchAndUpdateSelectors();
+  }
+});
+
+async function fetchAndUpdateSelectors() {
+  const selectorUrl = 'https://chatdinger.com/selectors.json';
+  try {
+      const response = await fetch(selectorUrl);
+      const newSelectors = await response.json();
+
+      // Basic validation to ensure it's a non-empty array
+      if (Array.isArray(newSelectors) && newSelectors.length > 0) {
+          // Save the remotely fetched selectors to local storage
+          await chrome.storage.local.set({ customSelectors: newSelectors });
+          console.log('Chat Dinger: Successfully updated selectors from remote source.');
+      }
+  } catch (error) {
+      console.error('Chat Dinger: Failed to fetch remote selectors.', error);
+      // On failure, the extension will just keep using its last known selectors.
+  }
+}
+
 async function playSoundInOffscreen(soundFile, volume) {
   const hasDoc = await chrome.offscreen.hasDocument();
   if (!hasDoc) {

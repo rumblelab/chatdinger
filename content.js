@@ -143,13 +143,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings = { ...settings, ...message.settings };
             sendResponse({ status: 'Settings updated in content script', success: true });
             break;
-        case 'selectorsUpdated':
-            console.log('Chat Dinger: Received updated selectors.', message.selectors);
-            currentChatGptSelectors = message.selectors;
-            // Re-initialize the button finding logic with the new selectors
-            observeForChatGPTButton(); 
-            sendResponse({ status: 'Selectors updated and applied', success: true });
-            break;
         case 'testSound':
             playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume, true)
                 .then(success => sendResponse({ status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', success }))

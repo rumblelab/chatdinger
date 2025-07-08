@@ -344,6 +344,10 @@
                     <div class="checkbox checked" id="enabled-toggle"></div>
                     <label class="label" for="enabled-toggle">Enable notifications</label>
                 </div>
+                <div class="setting-row">
+                    <div class="checkbox" id="active-tab-toggle"></div>
+                    <label class="label" for="active-tab-toggle">Notify when ChatGPT is active tab</label>
+                </div>
             </div>
 
             <div class="group-box">
@@ -378,31 +382,6 @@
                     <button class="button" id="test-sound">Test</button>
                 </div>
             </div>
-            <div class="group-box collapsible" id="advanced-settings">
-                <div class="group-title">
-                    <span class="arrow">▶</span> Advanced Settings
-                </div>
-                <div class="collapsible-content">
-                    <div class="setting-row">
-                        <div class="checkbox" id="active-tab-toggle"></div>
-                        <label class="label" for="active-tab-toggle">Enable notifications when ChatGPT is active</label>
-                    </div>
-                    <div class="setting-row">
-                        <label class="label" for="selector-input">
-                            Broken Dinger?
-                            (<a href="https://chatdinger.com/selectors" target="_blank">override selectors.</a>)
-                        </label>
-                    </div>
-                    <div class="setting-row">
-                        <textarea id="selector-input" rows="5" style="width: 100%; font-family: monospace; font-size: 10px; border: 2px inset #c0c0c0; background: #fff;"></textarea>
-                    </div>
-                    <div class="setting-row" style="justify-content: space-between;">
-                        <button class="button" id="restore-selectors-btn">Restore Defaults</button>
-                        <button class="button" id="save-selectors-btn">Save Selectors</button>
-                    </div>
-                </div>
-            </div>
-
             <div id="status-message" class="status-panel hidden" style="margin: 8px 0; text-align: center;"></div>
         </div>
 

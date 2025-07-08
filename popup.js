@@ -7,20 +7,9 @@ const soundSelect = document.getElementById('sound-select');
 const testSoundBtn = document.getElementById('test-sound');
 const statusMessage = document.getElementById('status-message');
 const volumeThumb = document.getElementById('volume-thumb');
-const selectorInput = document.getElementById('selector-input');
-const saveSelectorsBtn = document.getElementById('save-selectors-btn');
-const restoreSelectorsBtn = document.getElementById('restore-selectors-btn');
 const activeTabToggle = document.getElementById('active-tab-toggle');
 
 let onChatGPTPage = false;
-
-const DEFAULT_CHATGPT_SELECTORS = [
-    'button[data-testid$="send-button"]',
-    'button[data-testid$="stop-button"]',
-    '#composer-submit-button',
-    'button[aria-label="Send prompt"]:has(svg)',
-    'button[aria-label="Stop streaming"]:has(svg)'
-];
 
 const defaultSettings = {
     enabled: true,
@@ -71,13 +60,10 @@ async function requestNotificationPermission() {
 async function loadSettings() {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage) {
-            const result = await chrome.storage.local.get(['chatAlertSettings', 'customSelectors']);
+            const result = await chrome.storage.local.get(['chatAlertSettings']);
             if (result.chatAlertSettings) {
                 currentSettings = { ...defaultSettings, ...result.chatAlertSettings };
             }
-            // Load custom selectors or use defaults
-            const selectors = result.customSelectors || DEFAULT_CHATGPT_SELECTORS;
-            selectorInput.value = selectors.join('\n');
         }
         updateUI();
         validateSettings();
@@ -371,59 +357,12 @@ async function setTestButtonState() {
     testSoundBtn.title = 'Test the selected sound';
   }
 
-  saveSelectorsBtn.addEventListener('click', async () => {
-    const newSelectors = selectorInput.value
-        .split('\n')
-        .map(s => s.trim()) // Remove leading/trailing whitespace
-        .filter(s => s); // Remove any empty lines
-
-    if (newSelectors.length === 0) {
-        showStatus('Cannot save empty selector list.', true);
-        return;
-    }
-
-    try {
-        await chrome.storage.local.set({ customSelectors: newSelectors });
-
-        // Notify the active content scripts of the change
-        const tabs = await getChatGPTTabs();
-
-        for (const tab of tabs) {
-            try {
-                await chrome.tabs.sendMessage(tab.id, {
-                    action: 'selectorsUpdated',
-                    selectors: newSelectors
-                });
-            } catch (e) {
-                console.warn(`Could not send selector update to tab ${tab.id}. It might not be ready.`);
-            }
-        }
-        showStatus('Selectors saved and applied!', false);
-    } catch (error) {
-        console.error("Chat Dinger: Error saving selectors:", error);
-        showStatus('Failed to save selectors.', true);
-    }
-});
-
-restoreSelectorsBtn.addEventListener('click', async () => {
-    // Populate the textarea with the defaults
-    selectorInput.value = DEFAULT_CHATGPT_SELECTORS.join('\n');
-    // Trigger the save functionality to persist and apply them
-    saveSelectorsBtn.click();
-    showStatus('Default selectors restored and saved.');
-});
 
 
 async function init() {
     await loadSettings(); // Loads settings, updates UI, validates
     await setTestButtonState(); 
     updateVolumeDisplay(); // Ensure thumb is correct on initial load after container is sized
-    const advancedSettings = document.getElementById('advanced-settings');
-    const advancedSettingsTitle = advancedSettings.querySelector('.group-title');
-
-    advancedSettingsTitle.addEventListener('click', () => {
-        advancedSettings.classList.toggle('expanded');
-    });
 }
 
 if (document.readyState === 'loading') {

@@ -9,7 +9,8 @@
     "scripting",
     "activeTab",
     "notifications",
-    "offscreen"
+    "offscreen",
+    "alarms"
     ],
   "host_permissions": [
     "*://chat.openai.com/*",
@@ -51,7 +52,8 @@
       ],
       "matches": [
         "*://chatgpt.com/*",
-        "*://chat.openai.com/*"
+        "*://chat.openai.com/*",
+        "https://chatdinger.com/*"
       ]
     }
   ],
