@@ -370,4 +370,66 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+const devCollapsible = document.getElementById('developer-tools');
+const devTriggerBtn = document.getElementById('dev-trigger-ding');
+const devResetBtn = document.getElementById('dev-reset-count');
+
+// Add click listener to make the developer section collapsible
+if (devCollapsible) {
+    const title = devCollapsible.querySelector('.group-title');
+    if (title) {
+        title.addEventListener('click', () => {
+            devCollapsible.classList.toggle('expanded');
+        });
+    }
+}
+
+// This helper function safely dispatches an event on the active page
+async function dispatchEventOnPage(eventName) {
+    try {
+        // Find the active tab
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab || !tab.id) {
+            showStatus('No active tab found.', true);
+            return;
+        }
+
+        // Use the modern, CSP-safe scripting API
+        chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            world: 'MAIN', // IMPORTANT: This targets the main page world
+            func: (event) => window.dispatchEvent(new CustomEvent(event)),
+            args: [eventName],
+        });
+        showStatus(`'${eventName}' sent to page.`);
+    } catch (e) {
+        console.error(`Failed to dispatch event '${eventName}':`, e);
+        showStatus(`Error: ${e.message}`, true);
+    }
+}
+
+// Hook up the buttons to the helper function
+if (devTriggerBtn) {
+    devTriggerBtn.addEventListener('click', () => {
+        dispatchEventOnPage('run_dinger_test');
+    });
+}
+
+if (devResetBtn) {
+    devResetBtn.addEventListener('click', () => {
+        dispatchEventOnPage('run_dinger_reset');
+    });
+}
+
+if (devCollapsible) {
+    // Get the extension's manifest details
+    const manifest = chrome.runtime.getManifest();
+    
+    // The 'update_url' is only present for extensions installed from a store.
+    // If it exists, this is a "production" build, so we hide the developer tools.
+    if (manifest.update_url) {
+        devCollapsible.style.display = 'none';
+    }
+}
+
 window.addEventListener('resize', updateVolumeDisplay);

@@ -31,6 +31,28 @@ const SITE = (() => {
     return 'UNKNOWN';
 })();
 
+function resetDingerStateForTesting() {
+    console.log('Resetting Chat Dinger state...');
+    soundPlayCount = 0;
+    hasShownPopup = false;
+    // Use your existing save function to update chrome.storage.local
+    saveSoundCount().then(() => {
+        console.log('Chat Dinger state has been reset. The popup will show on the next alert (after threshold is met).');
+    });
+}
+
+// Listen for the events dispatched by the bridge functions
+window.addEventListener('run_dinger_test', () => {
+    console.log('Chat Dinger: Test event received. Running alert.');
+    playAlert();
+});
+
+window.addEventListener('run_dinger_reset', () => {
+    console.log('Chat Dinger: Reset event received. Resetting state.');
+    // This function is the same one we created before
+    resetDingerStateForTesting();
+});
+
 async function loadSoundCount() {
     try {
         const result = await chrome.storage.local.get(['soundPlayCount', 'hasShownPopup']);
@@ -102,9 +124,15 @@ function showThanksPopup() {
     `;
     overlay.appendChild(popup);
     document.body.appendChild(overlay);
-    document.getElementById('deal').addEventListener('click', () => {
-        hasShownPopup = true; saveSoundCount(); overlay.remove(); document.head.removeChild(style);
-    });
+    const dealButton = popup.querySelector('#deal');
+    if (dealButton) {
+        dealButton.addEventListener('click', () => {
+            hasShownPopup = true; 
+            saveSoundCount(); 
+            overlay.remove(); 
+            document.head.removeChild(style);
+        });
+    }
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) { overlay.remove(); document.head.removeChild(style); }
     });
@@ -244,7 +272,7 @@ async function playAlert() {
 
     if (soundPlayed) {
         soundPlayCount++;
-        if (soundPlayCount >= askThreshold && !hasShownPopup) {
+        if (soundPlayCount = askThreshold && !hasShownPopup) {
             setTimeout(showThanksPopup, 1000);
         }
         if (soundPlayCount % 3 === 0 || soundPlayed) {
@@ -396,8 +424,6 @@ function startChatGPTMaintenance() {
         }
     }, 7000);
 }
-
-window.testChatDinger = () => playAlert();
 
 async function init() {
     if (SITE === 'UNKNOWN') return;
