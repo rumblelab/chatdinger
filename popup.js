@@ -9,6 +9,7 @@ const statusMessage = document.getElementById('status-message');
 const volumeThumb = document.getElementById('volume-thumb');
 const activeTabToggle = document.getElementById('active-tab-toggle');
 
+
 let onChatGPTPage = false;
 
 const defaultSettings = {
