@@ -1,5 +1,6 @@
 console.log('Chat Dinger: Content script loaded. By discofish.');
 
+// ===== GLOBAL VARIABLES =====
 let soundPlayCount = 0;
 let hasShownPopup = false;
 const askThreshold = 7;
@@ -7,11 +8,16 @@ let lastUserInteraction = 0;
 
 let settings = {
   enabled: true,
+  isMuted: false, // Dedicated property for the mute button
   volume: 0.7,
-  selectedSound: 'cryptic.wav'
+  selectedSound: 'cryptic.wav',
+  notifyOnActiveTab: true,
+  enableNotifications: true,
 };
+
 let canPlayAlertSound = true;
 
+// Button monitoring variables
 let chatgptButtonInstance = null;
 let chatgptIsGenerating = false;
 let chatgptFirstGenerationCheck = true;
@@ -19,6 +25,11 @@ let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 
+// Composer mute toggle variables
+let composerMuteToggle = null;
+let composerObserver = null;
+
+// ===== SITE DETECTION =====
 const SITE = (() => {
   const hostname = window.location.hostname;
   if (hostname.includes('chatgpt.com') || hostname.includes('chat.openai.com')) {
@@ -27,11 +38,18 @@ const SITE = (() => {
   return 'UNKNOWN';
 })();
 
-// Logging utility
+// ===== SELECTORS =====
+const CHATGPT_BUTTON_SELECTORS = [
+  '#composer-submit-button',
+  'button[data-testid$="send-button"]',
+  'button[data-testid$="stop-button"]'
+];
+
+let currentChatGptSelectors = [...CHATGPT_BUTTON_SELECTORS];
+
+// ===== UTILITY FUNCTIONS =====
 async function logIfDev(level, ...args) {
-  if (!chrome.runtime?.id||!chrome.storage?.local) {
-    // The context has been invalidated, so we can't use any chrome.* APIs.
-    // Silently return to prevent the error.
+  if (!chrome.runtime?.id || !chrome.storage?.local) {
     return;
   }
   try {
@@ -54,25 +72,12 @@ async function logIfDev(level, ...args) {
   }
 }
 
-function resetDingerStateForTesting() {
-  logIfDev('log', 'Resetting Chat Dinger state...');
-  soundPlayCount = 0;
-  hasShownPopup = false;
-  saveSoundCount().then(() => {
-    logIfDev('log', 'Chat Dinger state has been reset. The popup will show on the next alert (after threshold is met).');
-  });
+function trackUserInteraction() {
+  lastUserInteraction = Date.now();
+  logIfDev('log', 'User interaction detected');
 }
 
-window.addEventListener('run_dinger_test', () => {
-  logIfDev('log', 'Test event received. Running alert.');
-  playAlert();
-});
-
-window.addEventListener('run_dinger_reset', () => {
-  logIfDev('log', 'Reset event received. Resetting state.');
-  resetDingerStateForTesting();
-});
-
+// ===== STORAGE FUNCTIONS =====
 async function loadSoundCount() {
   try {
     const result = await chrome.storage.local.get(['soundPlayCount', 'hasShownPopup']);
@@ -98,16 +103,38 @@ async function saveSoundCount() {
     return true;
   } catch (error) {
     if (error.message.includes('Extension context invalidated')) {
-      // The context is gone, so don't use a Chrome API-dependent logger.
-      // A simple console.warn is safe.
       console.warn('Chat Dinger: Could not save sound count, context was invalidated.');
       return false;
     }
     console.error('Chat Dinger: Failed to save sound count:', error);
     return false;
-}
+  }
 }
 
+async function loadSettings() {
+  try {
+    if (!chrome.runtime?.id) { return; }
+    const result = await chrome.storage.local.get(['chatAlertSettings', 'customSelectors']);
+    
+    if (result.chatAlertSettings) {
+      settings = { ...settings, ...result.chatAlertSettings };
+    }
+    
+    if (result.customSelectors && result.customSelectors.length > 0) {
+      currentChatGptSelectors = [...result.customSelectors, ...CHATGPT_BUTTON_SELECTORS];
+    } else {
+      currentChatGptSelectors = [...CHATGPT_BUTTON_SELECTORS];
+    }
+    
+    await logIfDev('log', 'Loaded settings:', settings);
+  } catch (error) {
+    if (!error.message.includes('Extension context invalidated')) {
+      console.error('Chat Dinger: Failed to load settings:', error);
+    }
+  }
+}
+
+// ===== POPUP FUNCTIONS =====
 function showThanksPopup() {
   const overlay = document.createElement('div');
   overlay.id = 'chat-dinger-popup-overlay';
@@ -117,36 +144,40 @@ function showThanksPopup() {
     align-items: center; justify-content: center;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
+  
   const popup = document.createElement('div');
   popup.style.cssText = `
     background: white; border-radius: 12px; padding: 24px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); max-width: 400px;
     text-align: center; position: relative; animation: slideIn 0.3s ease-out;
   `;
+  
   const style = document.createElement('style');
   style.textContent = `@keyframes slideIn { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`;
   document.head.appendChild(style);
+  
   popup.innerHTML = `
     <div style="margin-bottom: 16px;">
-      <div style="font-size: 48px; margin-bottom: 8px;"></div>
       <h2 style="margin: 0; color: #333; font-size: 20px;">Quick deal?</h2>
       <p style="color: #666; margin: 16px 0; line-height: 1.4;">
         No more annoying popups. Just a simple handshake between us.
       </p>
       <img style="display: block; margin: 0 auto 16px; width: 100%; max-width: 200px;" src="${chrome.runtime.getURL('images/gentlemansagreementfinal.jpeg')}" alt="Thank You">
       <p style="color: #666; margin: 16px 0; line-height: 1.4;">
-        Tell one friend about ChatDinger. That’s it. Do that, and I’ll never bug you with another popup again.
+        Tell one friend about ChatDinger. That's it. Do that, and I'll never bug you with another popup again.
       </p>
     </div>
     <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px;">
       <button id="deal" style="background: #4285f4; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">🤝 Deal</button>
     </div>
     <p style="color: #666; margin: 16px 0; line-height: 1.4; font-size: 10px">
-      This is your one and only popup. You’ll still hear the ding, but you might hear guilt if you don’t share. 😉
+      This is your one and only popup. You'll still hear the ding, but you might hear guilt if you don't share. 😉
     </p>
   `;
+  
   overlay.appendChild(popup);
   document.body.appendChild(overlay);
+  
   const dealButton = popup.querySelector('#deal');
   if (dealButton) {
     dealButton.addEventListener('click', () => {
@@ -156,91 +187,46 @@ function showThanksPopup() {
       document.head.removeChild(style);
     });
   }
+  
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) { overlay.remove(); document.head.removeChild(style); }
   });
+  
   const handleEscape = (e) => {
     if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', handleEscape); document.head.removeChild(style); }
   };
   document.addEventListener('keydown', handleEscape);
 }
 
-async function loadSettings() {
-  try {
-    if (!chrome.runtime?.id) { return; }
-    const result = await chrome.storage.local.get(['chatAlertSettings', 'customSelectors']);
-    if (result.chatAlertSettings) {
-      settings = { ...settings, ...result.chatAlertSettings };
-    }
-    if (result.customSelectors && result.customSelectors.length > 0) {
-      currentChatGptSelectors = result.customSelectors;
-    } else {
-      currentChatGptSelectors = [...DEFAULT_CHATGPT_SELECTORS];
-    }
-    await logIfDev('log', 'Loaded settings:', settings, 'Selectors:', currentChatGptSelectors);
-  } catch (error) {
-    if (!error.message.includes('Extension context invalidated')) {
-      console.error('Chat Dinger: Failed to load settings:', error);
-    }
-  }
-}
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!chrome.runtime?.id) {
-    sendResponse({ status: 'Extension context invalidated', success: false });
-    return false;
-  }
-  logIfDev('log', 'Received message:', message);
-  switch (message.action) {
-    case 'settingsUpdated':
-      settings = { ...settings, ...message.settings };
-      logIfDev('log', 'Settings updated:', settings);
-      sendResponse({ status: 'Settings updated in content script', success: true });
-      break;
-    case 'testSound':
-      logIfDev('log', 'Processing testSound message');
-      playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume, true)
-        .then(success => sendResponse({ status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', success }))
-        .catch(error => sendResponse({ status: 'Test sound error in content script', success: false, error: error.message }));
-      return true;
-    default:
-      sendResponse({ status: 'Unknown action in content script', success: false });
-  }
-  return true;
-});
-
-function trackUserInteraction() {
-  lastUserInteraction = Date.now();
-  logIfDev('log', 'User interaction detected');
-}
-
-['click', 'keydown', 'touchstart', 'mousedown'].forEach(eventType => {
-  document.addEventListener(eventType, trackUserInteraction, { passive: true, capture: true });
-});
-
+// ===== AUDIO FUNCTIONS =====
 async function playAudioFile(soundFile, volume) {
   try {
     if (!chrome.runtime?.id) {
       await logIfDev('warn', 'Extension context invalidated');
       return false;
     }
+    
     const soundUrl = chrome.runtime.getURL(`sounds/${soundFile}`);
     await logIfDev('log', `Playing sound: ${soundUrl}`);
+    
     if (!soundUrl) {
       console.error('Chat Dinger: Could not get URL for sound file:', soundFile);
       return false;
     }
+    
     const audio = new Audio(soundUrl);
     audio.volume = Math.min(Math.max(0, parseFloat(volume) || 0.7), 1.0);
     audio.preload = 'auto';
+    
     if (Date.now() - lastUserInteraction > 10000) {
       await logIfDev('warn', 'No recent user interaction, HTML5 audio play might be blocked.');
     }
+    
     await audio.play();
     await logIfDev('log', 'Audio played successfully');
     return true;
   } catch (e) {
-    console.error(`Chat Dinger: HTML5 Audio file playback failed for ${soundFile}: ${e.message} (Name: ${e.name})`);
+    console.error(`Chat Dinger: HTML5 Audio file playback failed for ${soundFile}: ${e.message}`);
     return false;
   }
 }
@@ -250,6 +236,7 @@ async function requestBackgroundNotification(title, messageText) {
     await logIfDev('warn', 'Cannot request background notification, extension context invalid.');
     return false;
   }
+  
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'playNotificationSound',
@@ -270,15 +257,19 @@ async function requestBackgroundNotification(title, messageText) {
 
 async function playSound(soundFile = null, volume = null, isTest = false) {
   await logIfDev('log', `playSound: soundFile=${soundFile || settings.selectedSound}, volume=${volume || settings.volume}, isTest=${isTest}, document.hidden=${document.hidden}`);
+  
   if (!settings.notifyOnActiveTab && !document.hidden && !isTest) {
     await logIfDev('log', 'Skipping sound due to active tab setting');
     return;
   }
+  
   const selectedSoundSetting = soundFile || settings.selectedSound;
   const audioVolume = volume !== null ? volume : settings.volume;
   let effectiveSoundFile = selectedSoundSetting;
 
-  if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) effectiveSoundFile = 'cryptic.wav';
+  if (selectedSoundSetting === 'coin' && !selectedSoundSetting.endsWith('.wav')) {
+    effectiveSoundFile = 'cryptic.wav';
+  }
   
   if (!effectiveSoundFile || typeof effectiveSoundFile !== 'string' || !effectiveSoundFile.includes('.')) {
     console.error('Chat Dinger: Invalid sound file, using cryptic.wav:', effectiveSoundFile);
@@ -295,24 +286,28 @@ async function playSound(soundFile = null, volume = null, isTest = false) {
     return true;
   }
 
-  await logIfDev('warn', `In-page audio failed for ${effectiveSoundFile} (page visible). Using background notification fallback.`);
+  await logIfDev('warn', `In-page audio failed for ${effectiveSoundFile}. Using background notification fallback.`);
   return await requestBackgroundNotification('Chat Dinger', `Response ready! (Sound: ${effectiveSoundFile.split('.')[0]})`);
 }
 
 async function playAlert() {
-  await logIfDev('log', `playAlert: enabled=${settings.enabled}, notifyOnActiveTab=${settings.notifyOnActiveTab}, document.hidden=${document.hidden}, canPlayAlertSound=${canPlayAlertSound}`);
-  if (!settings.enabled) {
-    await logIfDev('log', 'Alerts disabled');
+  await logIfDev('log', `playAlert: enabled=${settings.enabled}, isMuted=${settings.isMuted}, canPlayAlertSound=${canPlayAlertSound}`);
+  
+  if (!settings.enabled || settings.isMuted) {
+    await logIfDev('log', 'Alerts disabled or muted');
     return;
   }
+  
   if (!settings.notifyOnActiveTab && !document.hidden) {
     await logIfDev('log', 'Not notifying on active tab');
     return;
   }
+  
   if (!canPlayAlertSound) {
     await logIfDev('log', 'Cannot play alert due to cooldown');
     return;
   }
+  
   canPlayAlertSound = false;
 
   const soundPlayed = await playSound();
@@ -321,68 +316,203 @@ async function playAlert() {
   if (soundPlayed) {
     soundPlayCount++;
     await logIfDev('log', `Sound play count: ${soundPlayCount}`);
+    
     if (soundPlayCount >= askThreshold && !hasShownPopup) {
       await logIfDev('log', 'Showing thanks popup');
       setTimeout(showThanksPopup, 1000);
     }
-    if (soundPlayCount % 3 === 0 || soundPlayed) {
+    
+    if (soundPlayCount % 3 === 0) {
       await saveSoundCount();
     }
   } else {
-    await logIfDev('warn', 'All sound playing methods seemed to fail for this alert.');
+    await logIfDev('warn', 'Sound playing failed for this alert.');
   }
+  
   setTimeout(() => {
     canPlayAlertSound = true;
     logIfDev('log', 'canPlayAlertSound reset to true');
   }, 2000);
 }
 
-const DEFAULT_CHATGPT_SELECTORS = [
-  'button[data-testid$="send-button"]',
-  'button[data-testid$="stop-button"]',
-  '#composer-submit-button',
-  'button[aria-label="Send prompt"]:has(svg)',
-  'button[aria-label="Stop streaming"]:has(svg)',
-  'button[aria-label="Cancel generation"]:has(svg)' // Added for robustness
-];
-
-let currentChatGptSelectors = [...DEFAULT_CHATGPT_SELECTORS];
-
+// ===== BUTTON DETECTION FUNCTIONS =====
 function getChatGPTButtonState(button) {
-  if (!button || !button.getAttribute) {
-    logIfDev('log', 'No button or invalid button');
-    return { isGenerating: false, ariaLabel: '', textContent: '', isDisabled: true, hasSendIndicator: false, hasStopIndicator: false };
+  if (!button || typeof button.getAttribute !== 'function') {
+    return { isGenerating: false, method: 'invalid-element' };
   }
-  const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-  const textContent = (button.textContent || '').toLowerCase().trim();
+  const testId = button.getAttribute('data-testid') || '';
   const isDisabled = button.disabled;
-  const hasStopIndicator = ['stop', 'cancel', 'interrupt', 'cancel generation'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword));
-  const hasSendIndicator = ['send', 'submit', 'prompt'].some(keyword => ariaLabel.includes(keyword) || textContent.includes(keyword));
-  const isGenerating = hasStopIndicator || (isDisabled && !hasSendIndicator);
-  logIfDev('log', `Button state: ariaLabel=${ariaLabel}, textContent=${textContent}, isDisabled=${isDisabled}, hasStopIndicator=${hasStopIndicator}, hasSendIndicator=${hasSendIndicator}, isGenerating=${isGenerating}`);
-  return { isGenerating, ariaLabel, textContent, isDisabled, hasSendIndicator, hasStopIndicator, svgPathData: '' };
+  const svgPathData = button.querySelector('svg path')?.getAttribute('d') || '';
+
+  // Method 1: data-testid (Highest confidence)
+  if (testId.endsWith('stop-button') || testId.includes('stop')) {
+    return { isGenerating: true, method: `testid-stop: ${testId}` };
+  }
+  if (testId.endsWith('send-button')) {
+    // When the "send" button is disabled, generation is in progress.
+    return { isGenerating: isDisabled, method: `testid-send: ${testId}` };
+  }
+
+  // Method 2: SVG path data (Good language-agnostic fallback)
+  // The "stop" square icon has a very simple path.
+  if (svgPathData.length < 100 && isDisabled) { 
+    return { isGenerating: true, method: 'svg-stop-icon' };
+  }
+  
+  // Final Fallback: The most basic check is if the button is disabled.
+  return { isGenerating: isDisabled, method: 'disabled-fallback' };
 }
 
 function processChatGPTButtonState(buttonElement) {
   const currentState = getChatGPTButtonState(buttonElement);
-  logIfDev('log', `Processing state: firstCheck=${chatgptFirstGenerationCheck}, wasGenerating=${chatgptIsGenerating}, nowGenerating=${currentState.isGenerating}`);
-  if (chatgptFirstGenerationCheck && !currentState.isGenerating && chatgptIsGenerating) {
-    logIfDev('log', 'Triggering alert (first check case)');
+  logIfDev('log', `Button Check -> Method: "${currentState.method}", WasGenerating: ${chatgptIsGenerating}, NowGenerating: ${currentState.isGenerating}`);
+
+  if (chatgptIsGenerating && !currentState.isGenerating) {
+    logIfDev('log', `✅ Generation finished! Triggering alert. (Method: ${currentState.method})`);
     playAlert();
-    chatgptFirstGenerationCheck = false;
-  } else if (!chatgptFirstGenerationCheck && chatgptIsGenerating && !currentState.isGenerating) {
-    logIfDev('log', 'Triggering alert (state transition case)');
-    playAlert();
-  } else if (chatgptFirstGenerationCheck && currentState.isGenerating) {
-    logIfDev('log', 'Setting first check to false (initially generating)');
-    chatgptFirstGenerationCheck = false;
-  } else if (!chatgptIsGenerating && currentState.isGenerating) {
-    logIfDev('log', 'Setting first check to false (started generating)');
-    chatgptFirstGenerationCheck = false;
   }
+  
   chatgptIsGenerating = currentState.isGenerating;
 }
 
+function findChatGPTButton() {
+  let fallbackButton = null;
+  let fallbackSelectorIndex = -1;
+  
+  for (let i = 0; i < currentChatGptSelectors.length; i++) {
+    const selector = currentChatGptSelectors[i];
+    logIfDev('log', `Trying selector[${i}]: ${selector}`);
+    
+    try {
+      const buttons = document.querySelectorAll(selector);
+      logIfDev('log', `Found ${buttons.length} buttons for selector[${i}]`);
+      
+      for (const button of buttons) {
+        if (button.offsetWidth > 0 && button.offsetHeight > 0) {
+          const testId = button.getAttribute('data-testid');
+          logIfDev('log', `Button visible with testId: ${testId}`);
+          
+          // Prioritize testid buttons
+          if (testId && (testId.endsWith('send-button') || testId.endsWith('stop-button'))) {
+            logIfDev('log', `✅ Found testid button: "${testId}" with selector[${i}]`);
+            return button;
+          }
+          
+          if (!fallbackButton) {
+            fallbackButton = button;
+            fallbackSelectorIndex = i;
+            logIfDev('log', `Setting fallback button from selector[${i}]`);
+          }
+        }
+      }
+    } catch (error) {
+      logIfDev('error', `Selector[${i}] failed: ${selector}`, error);
+      continue;
+    }
+  }
+  
+  if (fallbackButton) {
+    logIfDev('log', `⚠️ Using fallback button with selector[${fallbackSelectorIndex}]`);
+    return fallbackButton;
+  }
+  
+  logIfDev('log', 'No buttons found with any selector');
+  return null;
+}
+
+// ===================================
+// == COMPOSER MUTE TOGGLE INJECTOR ==
+// ===================================
+
+// Creates the SVG for the button.
+function createMuteSVG(isMuted) {
+  const svgHeader = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" class="icon">`;
+  const svgFooter = `</svg>`;
+  if (isMuted) {
+    const mutedIcon = `<path d="M11 5L6 9H2v6h4l5 4V5z"></path><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>`;
+    return svgHeader + mutedIcon + svgFooter;
+  } else {
+    const unmutedIcon = `<path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>`;
+    return svgHeader + unmutedIcon + svgFooter;
+  }
+}
+
+// Updates the button's appearance based on the mute state.
+function updateComposerMuteButton(button) {
+  if (!button) return;
+  const isMuted = settings.isMuted || false;
+  button.innerHTML = createMuteSVG(isMuted);
+  button.setAttribute('aria-label', isMuted ? 'Unmute alerts' : 'Mute alerts');
+  button.title = isMuted ? 'Unmute alerts' : 'Mute alerts';
+  button.style.color = isMuted ? '#ef4444' : 'currentColor'; // Red when muted
+}
+
+// Handles clicks on the mute button.
+function handleMuteToggleClick(event) {
+  event.stopPropagation();
+  settings.isMuted = !settings.isMuted;
+  logIfDev('log', `Mute toggled to: ${settings.isMuted}`);
+  
+  // Update the button visually right away.
+  updateComposerMuteButton(this);
+  
+  // Save the new setting.
+  chrome.storage.local.set({ chatAlertSettings: settings });
+}
+
+// This is the core function that finds the right spot and adds the button.
+function injectComposerMuteToggle() {
+  // Check if our button is already there to prevent duplicates.
+  if (document.getElementById('chat-dinger-mute-btn')) {
+    return;
+  }
+
+  // ** UPDATED STRATEGY: Use the specific data-testid for the trailing actions container **
+  const targetContainer = document.querySelector('[data-testid="composer-trailing-actions"]');
+  
+  // If we didn't find the container, we can't inject.
+  if (!targetContainer) {
+    // Don't log a warning here, as the observer will call this frequently.
+    return;
+  }
+
+  logIfDev('log', 'Injecting composer mute toggle into trailing actions container...');
+  
+  const button = document.createElement('button');
+  button.id = 'chat-dinger-mute-btn';
+  // Use the same classes as other buttons for consistent styling.
+  button.className = "flex items-center justify-center rounded-full h-8 w-8 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800";
+  
+  updateComposerMuteButton(button);
+  button.addEventListener('click', handleMuteToggleClick);
+  
+  // Add our button as the first item in the container so it appears before the send button.
+  targetContainer.prepend(button);
+  composerMuteToggle = button;
+}
+
+// This sets up the observer to watch for UI changes.
+function initComposerMuteToggle() {
+  if (composerObserver) composerObserver.disconnect();
+
+  // Create an observer that watches the whole page for changes.
+  composerObserver = new MutationObserver(() => {
+    // Every time something changes, we simply try to inject our button.
+    // The inject function is smart enough to not add duplicates.
+    injectComposerMuteToggle();
+  });
+
+  // Start observing.
+  composerObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+
+  // Also run it once at the start, in case the page is already loaded.
+  injectComposerMuteToggle();
+}
+
+// ===== BUTTON MONITORING =====
 function addChatGPTClickListener(button) {
   if (!button || button.dataset.chatgptListener === 'true') return;
   button.dataset.chatgptListener = 'true';
@@ -412,19 +542,29 @@ function startMonitoringChatGPTButton(button) {
     return;
   }
   if (chatgptButtonInstance === button && chatgptAttributeChangeObserver) return;
+  
   cleanupChatGPTObservers();
   chatgptButtonInstance = button;
   addChatGPTClickListener(button);
   chatgptFirstGenerationCheck = true;
+  
   const initialState = getChatGPTButtonState(chatgptButtonInstance);
   chatgptIsGenerating = initialState.isGenerating;
   if (chatgptIsGenerating) chatgptFirstGenerationCheck = false;
+  
   chatgptAttributeChangeObserver = new MutationObserver(() => {
     if (chatgptButtonInstance && document.contains(chatgptButtonInstance)) {
       processChatGPTButtonState(chatgptButtonInstance);
     }
   });
-  chatgptAttributeChangeObserver.observe(chatgptButtonInstance, { attributes: true, childList: true, subtree: true, characterData: true });
+  
+  chatgptAttributeChangeObserver.observe(chatgptButtonInstance, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+  
   const parentElement = chatgptButtonInstance.parentElement;
   if (parentElement) {
     chatgptButtonRemovedObserver = new MutationObserver(() => {
@@ -434,37 +574,15 @@ function startMonitoringChatGPTButton(button) {
   }
 }
 
-function findChatGPTButton() {
-  for (const selector of currentChatGptSelectors) {
-    logIfDev('log', `Trying selector: ${selector}`);
-    let buttons;
-    try {
-      buttons = document.querySelectorAll(selector);
-      logIfDev('log', `Found ${buttons.length} buttons for ${selector}`);
-    } catch {
-      logIfDev('error', `Selector ${selector} failed`);
-      continue;
-    }
-    if (!buttons.length) continue;
-    for (const button of buttons) {
-      logIfDev('log', `Checking button visibility: ${button.outerHTML}`);
-      if (button.offsetWidth && button.offsetHeight) {
-        logIfDev('log', `Visible button found: ${selector}`);
-        return button;
-      }
-    }
-  }
-  logIfDev('log', 'No visible button found');
-  return null;
-}
-
 function observeForChatGPTButton() {
   if (chatgptInitialButtonFinderObserver) chatgptInitialButtonFinderObserver.disconnect();
+  
   const button = findChatGPTButton();
   if (button) {
     startMonitoringChatGPTButton(button);
     return;
   }
+  
   chatgptInitialButtonFinderObserver = new MutationObserver(() => {
     const foundButton = findChatGPTButton();
     if (foundButton) {
@@ -473,29 +591,176 @@ function observeForChatGPTButton() {
       startMonitoringChatGPTButton(foundButton);
     }
   });
-  chatgptInitialButtonFinderObserver.observe(document.documentElement, { childList: true, subtree: true });
+  
+  chatgptInitialButtonFinderObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+  });
 }
 
 function startChatGPTMaintenance() {
   setInterval(() => {
-    logIfDev('log', 'Checking for button presence');
+    logIfDev('log', 'Running periodic maintenance check...');
+    // Check for the main send/stop button
     if (!chatgptButtonInstance || !document.contains(chatgptButtonInstance)) {
       observeForChatGPTButton();
     }
+    // The robust MutationObserver for the mute toggle makes a periodic check unnecessary.
   }, 7000);
 }
 
+// ===== EVENT LISTENERS =====
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!chrome.runtime?.id) {
+    sendResponse({ status: 'Extension context invalidated', success: false });
+    return false;
+  }
+  
+  logIfDev('log', 'Received message:', message);
+  
+  switch (message.action) {
+    case 'settingsUpdated':
+      settings = { ...settings, ...message.settings };
+      logIfDev('log', 'Settings updated:', settings);
+      
+      // Update composer toggle if it exists by finding it by ID for safety
+      const muteButton = document.getElementById('chat-dinger-mute-btn');
+      if (muteButton) {
+        updateComposerMuteButton(muteButton);
+      }
+      
+      sendResponse({ status: 'Settings updated in content script', success: true });
+      break;
+      
+    case 'testSound':
+      logIfDev('log', 'Processing testSound message');
+      playSound(message.soundFile || settings.selectedSound, message.volume || settings.volume, true)
+        .then(success => sendResponse({ 
+          status: success ? 'Test sound processed by content script' : 'Test sound failed in content script', 
+          success 
+        }))
+        .catch(error => sendResponse({ 
+          status: 'Test sound error in content script', 
+          success: false, 
+          error: error.message 
+        }));
+      return true;
+      
+    default:
+      sendResponse({ status: 'Unknown action in content script', success: false });
+  }
+  
+  return true;
+});
+
+// Listen for settings changes from other parts of the extension (like the popup)
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.chatAlertSettings) {
+    const newSettings = changes.chatAlertSettings.newValue;
+    logIfDev('log', 'Storage change detected, updating UI.');
+    settings = { ...settings, ...newSettings };
+
+    const muteButton = document.getElementById('chat-dinger-mute-btn');
+    if (muteButton) {
+      updateComposerMuteButton(muteButton);
+    }
+  }
+});
+
+// Track user interactions
+['click', 'keydown', 'touchstart', 'mousedown'].forEach(eventType => {
+  document.addEventListener(eventType, trackUserInteraction, { passive: true, capture: true });
+});
+
+// ===== TESTING FUNCTIONS =====
+function resetDingerStateForTesting() {
+  logIfDev('log', 'Resetting Chat Dinger state...');
+  soundPlayCount = 0;
+  hasShownPopup = false;
+  saveSoundCount().then(() => {
+    logIfDev('log', 'Chat Dinger state has been reset. The popup will show on the next alert (after threshold is met).');
+  });
+}
+
+window.addEventListener('run_dinger_test', () => {
+  logIfDev('log', 'Test event received. Running alert.');
+  playAlert();
+});
+
+window.addEventListener('run_dinger_reset', () => {
+  logIfDev('log', 'Reset event received. Resetting state.');
+  resetDingerStateForTesting();
+});
+
+// Debug function for testing
+function debugButtonDetection() {
+  console.log('🔍 Debug - Current selectors:', currentChatGptSelectors);
+  console.log('🔍 Debug - Total selectors:', currentChatGptSelectors.length);
+  
+  const button = findChatGPTButton();
+  if (button) {
+    const state = getChatGPTButtonState(button);
+    const testId = button.getAttribute('data-testid');
+    
+    console.log('🔍 Debug - Button Detection:', {
+      hasTestId: !!testId,
+      testId: testId,
+      detectionMethod: state.method,
+      isGenerating: state.isGenerating,
+      confidence: testId ? 'HIGH' : 'MEDIUM/LOW',
+      element: button,
+      ariaLabel: button.getAttribute('aria-label'),
+      className: button.className
+    });
+    
+    return state;
+  } else {
+    console.log('🔍 Debug - No button found');
+    return null;
+  }
+}
+
+// Additional debug function to test all selectors
+function debugAllSelectors() {
+  console.log('🔍 Testing all selectors:');
+  currentChatGptSelectors.forEach((selector, index) => {
+    try {
+      const buttons = document.querySelectorAll(selector);
+      console.log(`Selector[${index}]: ${selector} -> Found ${buttons.length} buttons`);
+      
+      buttons.forEach((button, btnIndex) => {
+        const testId = button.getAttribute('data-testid');
+        const ariaLabel = button.getAttribute('aria-label');
+        const visible = button.offsetWidth > 0 && button.offsetHeight > 0;
+        
+        console.log(`  Button[${btnIndex}]: visible=${visible}, testId="${testId}", aria-label="${ariaLabel}"`);
+      });
+    } catch (error) {
+      console.log(`Selector[${index}]: ${selector} -> ERROR: ${error.message}`);
+    }
+  });
+}
+
+// Make debug functions available for testing
+window.debugChatDinger = debugButtonDetection;
+window.debugAllSelectors = debugAllSelectors;
+
+// ===== INITIALIZATION =====
 async function init() {
   logIfDev('log', `Initializing Chat Dinger, SITE=${SITE}, readyState=${document.readyState}`);
+  
   if (SITE === 'UNKNOWN') {
     logIfDev('log', 'Not a ChatGPT page, exiting');
     return;
   }
+  
   await loadSettings();
   await loadSoundCount();
+  
   if (SITE === 'CHATGPT') {
-    logIfDev('log', 'Starting button observation');
+    logIfDev('log', 'Starting all observations');
     observeForChatGPTButton();
+    initComposerMuteToggle(); // This now handles the mute button entirely
     startChatGPTMaintenance();
   }
 }

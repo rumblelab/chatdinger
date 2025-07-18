@@ -10,7 +10,8 @@ chrome.runtime.onInstalled.addListener((details) => {
         enabled: true,
         volume: 0.7,
         selectedSound: 'cryptic.wav',
-        enableNotifications: true
+        enableNotifications: true,
+        notifyOnActiveTab: true
       }
     }).catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
   }
