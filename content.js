@@ -25,6 +25,11 @@ let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 
+// Global generation tracking (for GPT-5 Pro / thinking pane behaviour)
+let globalGenerationObserver = null;
+let lastGenerationStartTime = 0;
+const MIN_GENERATION_DURATION_MS = 1500;
+
 // Composer mute toggle variables
 let composerMuteToggle = null;
 let composerObserver = null;
@@ -335,6 +340,74 @@ async function playAlert() {
   }, 2000);
 }
 
+// ===== GLOBAL GENERATION / GPT-5 PRO HELPERS =====
+//
+// GPT-5 Pro briefly turns the composer send button into a Stop button, then
+// replaces it with a "Use voice mode" button while the real Stop control
+// moves into the side "thinking" pane. To avoid a false "done" ding after
+// ~1 second, we treat generation as in-progress if EITHER the main composer
+// indicates it OR a visible thinking-pane Stop button exists.
+
+/**
+ * Heuristic to decide if a button is the GPT-5 Pro thinking-pane Stop button.
+ * Uses text content, icon path and standard ChatGPT button classes.
+ */
+function isThinkingStopButton(button) {
+  if (!button || button.tagName !== 'BUTTON') return false;
+  if (!(button.offsetWidth > 0 && button.offsetHeight > 0)) return false;
+
+  const text = (button.textContent || '').trim();
+  const hasStopText = /\bstop\b/i.test(text);
+
+  const pathEl = button.querySelector('svg path');
+  const d = pathEl ? (pathEl.getAttribute('d') || '') : '';
+  // Square stop icon path observed in GPT-5 Pro thinking pane.
+  const looksLikeSquareStop = d.startsWith('M4.5 5.75C4.5 5.05964 5.05964 4.5');
+
+  const cls = button.className || '';
+  const hasBtnClass = cls.includes('btn') && cls.includes('btn-secondary') && cls.includes('flex');
+
+  return hasStopText && (looksLikeSquareStop || hasBtnClass);
+}
+
+/**
+ * Finds a visible "Stop" button in the Pro thinking pane (or similar UI).
+ */
+function findThinkingStopButton() {
+  try {
+    // Narrow first: common ChatGPT button styling
+    const candidates = document.querySelectorAll('button.btn.btn-secondary, button');
+    for (const btn of candidates) {
+      if (isThinkingStopButton(btn)) {
+        return btn;
+      }
+    }
+  } catch (error) {
+    logIfDev('error', 'Error while scanning for thinking Stop button', error);
+  }
+  return null;
+}
+
+/**
+ * Returns the combined "generation in progress" state considering both the
+ * main composer button and any global thinking-pane Stop controls.
+ */
+function getGlobalGenerationState(buttonElement) {
+  const buttonState = buttonElement
+    ? getChatGPTButtonState(buttonElement)
+    : { isGenerating: false, method: 'no-button' };
+
+  const thinkingStop = findThinkingStopButton();
+  const hasThinkingStop = !!thinkingStop;
+
+  const isGenerating = buttonState.isGenerating || hasThinkingStop;
+  const method = hasThinkingStop
+    ? `${buttonState.method || 'unknown'}+thinking-stop`
+    : (buttonState.method || 'unknown');
+
+  return { isGenerating, method };
+}
+
 // ===== BUTTON DETECTION FUNCTIONS =====
 function getChatGPTButtonState(button) {
   if (!button || typeof button.getAttribute !== 'function') {
@@ -364,14 +437,31 @@ function getChatGPTButtonState(button) {
 }
 
 function processChatGPTButtonState(buttonElement) {
-  const currentState = getChatGPTButtonState(buttonElement);
-  logIfDev('log', `Button Check -> Method: "${currentState.method}", WasGenerating: ${chatgptIsGenerating}, NowGenerating: ${currentState.isGenerating}`);
+  const now = Date.now();
+  const currentState = getGlobalGenerationState(buttonElement);
+  logIfDev(
+    'log',
+    `Generation Check -> Method: "${currentState.method}", `
+      + `WasGenerating: ${chatgptIsGenerating}, NowGenerating: ${currentState.isGenerating}`
+  );
 
-  if (chatgptIsGenerating && !currentState.isGenerating) {
-    logIfDev('log', `✅ Generation finished! Triggering alert. (Method: ${currentState.method})`);
-    playAlert();
+  // Detect generation start
+  if (!chatgptIsGenerating && currentState.isGenerating) {
+    lastGenerationStartTime = now;
   }
-  
+
+  // Detect generation end
+  if (chatgptIsGenerating && !currentState.isGenerating) {
+    const elapsed = now - lastGenerationStartTime;
+    if (elapsed < MIN_GENERATION_DURATION_MS) {
+      // This guards against GPT-5 Pro's initial ~1s composer Stop flip.
+      logIfDev('log', `Ignoring generation end (elapsed=${elapsed}ms) due to minimum duration threshold`);
+    } else {
+      logIfDev('log', `✅ Generation finished! Triggering alert. (Method: ${currentState.method})`);
+      playAlert();
+    }
+  }
+
   chatgptIsGenerating = currentState.isGenerating;
 }
 
@@ -526,12 +616,44 @@ function cleanupChatGPTObservers() {
   chatgptButtonRemovedObserver = null;
 }
 
+function startGlobalGenerationObserver() {
+  if (globalGenerationObserver) return;
+
+  globalGenerationObserver = new MutationObserver(() => {
+    // Any structural or attribute change may indicate a change in generation
+    // state, especially for GPT-5 Pro where the Stop button lives in a
+    // separate thinking pane.
+    if (chatgptButtonInstance && document.contains(chatgptButtonInstance)) {
+      processChatGPTButtonState(chatgptButtonInstance);
+    } else {
+      // Even if we haven't attached to a composer button yet, we still want
+      // to pay attention to the thinking-pane Stop button.
+      processChatGPTButtonState(null);
+    }
+  });
+
+  globalGenerationObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-testid', 'aria-label', 'class', 'disabled']
+  });
+}
+
+function stopGlobalGenerationObserver() {
+  if (globalGenerationObserver) {
+    globalGenerationObserver.disconnect();
+    globalGenerationObserver = null;
+  }
+}
+
 function handleChatGPTButtonRemoved() {
   logIfDev('log', `Button removed, was generating: ${chatgptIsGenerating}`);
-  if (chatgptIsGenerating) playAlert();
+  // Do NOT treat composer removal as completion by itself; GPT-5 Pro moves the
+  // Stop control into the thinking pane. Global generation detection will
+  // handle the actual end-of-generation event.
   cleanupChatGPTObservers();
   chatgptButtonInstance = null;
-  chatgptIsGenerating = false;
   chatgptFirstGenerationCheck = true;
   observeForChatGPTButton();
 }
@@ -548,9 +670,12 @@ function startMonitoringChatGPTButton(button) {
   addChatGPTClickListener(button);
   chatgptFirstGenerationCheck = true;
   
-  const initialState = getChatGPTButtonState(chatgptButtonInstance);
+  const initialState = getGlobalGenerationState(chatgptButtonInstance);
   chatgptIsGenerating = initialState.isGenerating;
-  if (chatgptIsGenerating) chatgptFirstGenerationCheck = false;
+  if (chatgptIsGenerating) {
+    chatgptFirstGenerationCheck = false;
+    lastGenerationStartTime = Date.now();
+  }
   
   chatgptAttributeChangeObserver = new MutationObserver(() => {
     if (chatgptButtonInstance && document.contains(chatgptButtonInstance)) {
@@ -699,7 +824,7 @@ function debugButtonDetection() {
   
   const button = findChatGPTButton();
   if (button) {
-    const state = getChatGPTButtonState(button);
+    const state = getGlobalGenerationState(button);
     const testId = button.getAttribute('data-testid');
     
     console.log('🔍 Debug - Button Detection:', {
@@ -762,6 +887,7 @@ async function init() {
     observeForChatGPTButton();
     initComposerMuteToggle(); // This now handles the mute button entirely
     startChatGPTMaintenance();
+    startGlobalGenerationObserver(); // Track GPT-5 Pro thinking-pane Stop button as well
   }
 }
 
