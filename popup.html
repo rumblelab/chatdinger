@@ -1,454 +1,268 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8"> 
-        <style>
-            * {
-                box-sizing: border-box;
-            }
+  <meta charset="utf-8" />
+  <title>Chat Dinger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* ===== Base / Theme ===== */
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; }
+    body {
+      width: 340px;
+      min-height: 480px;
+      background:#0b0c10;
+      color:#e7e9ea;
+      font: 12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+    a { color:#8ab4ff; text-decoration:none; }
+    .hidden { display:none !important; }
 
-            body {
-                width: 350px;
-                min-height: 480px;
-                margin: 0;
-                padding: 0;
-                font-family: 'MS Sans Serif', Tahoma, sans-serif;
-                font-size: 11px;
-                background: #c0c0c0;
-                color: #000000;
-                overflow: hidden;
-            }
+    /* ===== Layout ===== */
+    .wrap { padding: 12px; height: 100vh; display:flex; flex-direction:column; }
+    .content { flex:1 1 auto; overflow:auto; }
+    .footer { flex:0 0 auto; padding-top:8px; display:flex; gap:10px; align-items:center; justify-content:space-between; color:#9aa4ad; }
 
-            .window {
-                background: #c0c0c0;
-                border: 2px outset #c0c0c0;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
-            }
-
-            .title-bar {
-                background: #7943bf;
-                color: white;
-                padding: 2px;
-                font-size: 11px;
-                font-weight: bold;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                border-bottom: 1px solid #000040;
-            }
-
-            .title-text {
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                padding-left: 4px;
-            }
-
-            .title-icon {
-                width: 16px;
-                height: 16px;
-                background: #ffff00;
-                border: 1px solid #000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 10px;
-            }
-
-            .window-controls {
-                display: flex;
-                gap: 2px;
-                padding-right: 2px;
-            }
-
-            .control-btn {
-                width: 16px;
-                height: 14px;
-                background: #c0c0c0;
-                border: 1px outset #c0c0c0;
-                font-size: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-            }
-
-            .control-btn:active {
-                border: 1px inset #c0c0c0;
-            }
-
-            .content {
-                flex: 1;
-                padding: 8px;
-                overflow-y: auto;
-            }
-
-            .group-box {
-                border: 2px inset #c0c0c0;
-                margin-bottom: 8px;
-                position: relative;
-                padding: 12px 8px 8px 8px;
-            }
-
-            .group-title {
-                position: absolute;
-                top: -6px;
-                left: 8px;
-                background: #c0c0c0;
-                padding: 0 4px;
-                font-size: 11px;
-                color: #000000;
-            }
-
-            .setting-row {
-                display: flex;
-                align-items: center;
-                margin-bottom: 8px;
-                gap: 8px;
-            }
-
-            .setting-row:last-child {
-                margin-bottom: 0;
-            }
-
-            .checkbox {
-                width: 13px;
-                height: 13px;
-                border: 2px inset #c0c0c0;
-                background: #ffffff;
-                position: relative;
-                cursor: pointer;
-                flex-shrink: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .checkbox.checked {
-                background: #ffffff;
-            }
-
-            .checkbox.checked::before {
-                content: "✓";
-                font-size: 9px;
-                font-weight: bold;
-                color: #000000;
-                line-height: 1;
-            }
-
-            .label {
-                flex: 1;
-                cursor: pointer;
-                user-select: none;
-            }
-
-            .slider-container {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                width: 100%;
-            }
-
-            .slider {
-                flex: 1;
-                height: 20px;
-                background: #ffffff;
-                border: 2px inset #c0c0c0;
-                position: relative;
-                cursor: pointer;
-            }
-
-            .slider-track {
-                position: absolute;
-                top: 8px;
-                left: 2px;
-                right: 2px;
-                height: 2px;
-                background: #000080;
-            }
-
-            .slider-thumb {
-                position: absolute;
-                top: 2px;
-                width: 16px;
-                height: 14px;
-                background: #c0c0c0;
-                border: 1px outset #c0c0c0;
-                cursor: pointer;
-                pointer-events: none;
-            }
-
-            .status-message {
-                background: #ffffff;
-                border: 1px inset #c0c0c0;
-                padding: 4px 8px;
-                font-size: 11px;
-            }
-
-            .status-success {
-                color: #000080;
-            }
-
-            .status-error {
-                color: #800000;
-            }
-
-            .volume-display {
-                font-size: 11px;
-                min-width: 35px;
-                text-align: right;
-            }
-
-            .dropdown {
-                width: 100%;
-                height: 21px;
-                background: #ffffff;
-                border: 2px inset #c0c0c0;
-                font-size: 11px;
-                font-family: 'MS Sans Serif', Tahoma, sans-serif;
-                cursor: pointer;
-                padding: 2px 20px 2px 4px;
-                background-image: url("data:image/gif;base64,R0lGODlhDAAIAKECAAAAAP///wAAACH5BAAAAAAALAAAAAAMAAgAAAIRjI+pq+D9hADs=");
-                background-repeat: no-repeat;
-                background-position: right 6px center;
-                background-size: 8px 6px;
-            }
-
-            .dropdown:focus {
-                outline: 1px dotted #000000;
-                outline-offset: -2px;
-            }
-
-            .button {
-                height: 23px;
-                background: #c0c0c0;
-                border: 2px outset #c0c0c0;
-                font-size: 11px;
-                font-family: 'MS Sans Serif', Tahoma, sans-serif;
-                cursor: pointer;
-                padding: 0 12px;
-                margin-top: 6px;
-            }
-
-            .button:active {
-                border: 2px inset #c0c0c0;
-            }
-
-            .button:focus {
-                outline: 1px dotted #000000;
-                outline-offset: -4px;
-            }
-
-            .status-bar {
-                height: 20px;
-                background: #c0c0c0;
-                border-top: 1px solid #808080;
-                display: flex;
-                align-items: center;
-                padding: 0 4px;
-                font-size: 11px;
-            }
-
-            .status-panel {
-                background: #ffffff;
-                border: 1px inset #c0c0c0;
-                padding: 2px 4px;
-                margin-right: 4px;
-                font-size: 10px;
-            }
-
-            .hidden {
-                display: none;
-            }
-
-            /* Custom scrollbar */
-            ::-webkit-scrollbar {
-                width: 16px;
-            }
-
-            ::-webkit-scrollbar-track {
-                background: #c0c0c0;
-            }
-
-            ::-webkit-scrollbar-thumb {
-                background: #c0c0c0;
-                border: 2px outset #c0c0c0;
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: #a0a0a0;
-            }
-
-            ::-webkit-scrollbar-button {
-                background: #c0c0c0;
-                border: 1px outset #c0c0c0;
-                height: 16px;
-            }
-
-            ::-webkit-scrollbar-button:active {
-                border: 1px inset #c0c0c0;
-            }
-            #bug {
-                margin-left: auto;
-                margin-right: 4px;
-            }
-            #thank-you{
-                display: none;
-            }
-            .collapsible .group-title {
-        cursor: pointer;
-        user-select: none;
-        display: flex;
-        align-items: center;
+    /* ===== Tabs ===== */
+    .tabs { display:flex; gap:8px; margin-bottom:10px; }
+    .tabbtn {
+      flex:0 0 auto; padding:6px 10px; border-radius: 8px;
+      background:#1b1f23; cursor:pointer; user-select:none; border:1px solid #2b3036;
+      color:#e7e9ea;
+    }
+    .tabbtn[disabled] {
+      background:#2b3036; font-weight:600; cursor:default; opacity:1;
     }
 
-    .collapsible .arrow {
-        display: inline-block;
-        margin-right: 6px;
-        transition: transform 0.15s ease-in-out;
+    /* ===== Cards / Sections ===== */
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+    .grid.two { grid-template-columns: repeat(2, 1fr); }
+    .card {
+      background:#15181c; border:1px solid #23272e; border-radius:12px; padding:10px;
+    }
+    .section-title { font-weight:700; margin:12px 0 6px; font-size:12px; color:#cbd5e1; }
+
+    .label { color:#9aa4ad; font-size:11px; }
+    .value { font-size:20px; font-weight:700; margin-top:4px; }
+
+    .row { display:flex; align-items:center; gap:8px; }
+    .row-space { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .muted { color:#9aa4ad; }
+
+    .achv {
+      display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px;
+      background:#121519; border:1px solid #1f232b;
+    }
+    .achv .badge {
+      width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:#2b3036; font-size:12px;
+    }
+    .achv .title { font-weight:600; }
+    .achv .meta { color:#a2abb4; font-size:11px; }
+
+    /* ===== Progress ===== */
+    .progress {
+      height:10px; border-radius:999px; background:#101317; border:1px solid #1f232b; overflow:hidden;
+    }
+    .progress > div { height:100%; background:#22c55e; width:0%; transition: width .2s ease; }
+
+    /* ===== Controls ===== */
+    .field { margin-bottom:10px; }
+    .toggle { display:flex; align-items:center; gap:8px; }
+    .checkbox {
+      width:18px; height:18px; border-radius:6px; border:1px solid #2b3036; background:#15181c;
+      display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+    }
+    .checkbox.checked { background:#3b82f6; border-color:#3b82f6; }
+    .checkbox.checked::after { content:"✓"; font-size:12px; }
+
+    /* Dropdown */
+    .dropdown {
+      width:100%;
+      background:#15181c; color:#e7e9ea; border:1px solid #2b3036; border-radius:8px; padding:6px 8px;
+      font: inherit;
     }
 
-    /* This rule rotates the arrow when the section is expanded */
-    .collapsible.expanded .arrow {
-        transform: rotate(90deg);
+    /* Slider (custom thumb visual mirrors your old structure) */
+    .slider-wrap { display:flex; align-items:center; gap:8px; }
+    .slider {
+      position: relative; height: 24px; flex: 1 1 auto;
+      background:#15181c; border:1px solid #2b3036; border-radius:999px;
     }
-
-    /* This rule hides the content by default */
-    .collapsible-content {
-        display: none;
-        padding-top: 8px; /* Adds a little space below the title */
+    .slider-track {
+      position:absolute; left:8px; right:8px; top:11px; height:2px; background:#2b3036; border-radius:999px;
     }
-
-    /* This rule shows the content when the section is expanded */
-    .collapsible.expanded .collapsible-content {
-        display: block;
+    .slider-thumb {
+        position:absolute; top:4px;
+        width:16px; height:16px; border-radius:50%;
+        background:#e7e9ea; border:0; pointer-events:none;
+        transform: translateX(-50%); /* keep this */
+        /* left will be set in JS as a % */
     }
+    input[type="range"] {
+      position:absolute; inset:0; opacity:0; cursor:pointer;
+    }
+    .volume-display { color:#cbd5e1; }
 
+    /* Tooltip (kept minimal) */
+    .tooltip { position: relative; display: inline-flex; align-items:center; }
     .info-icon {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        background-color: #000080;
-        color: white;
-        border-radius: 50%;
-        text-align: center;
-        font-size: 9px;
-        line-height: 12px;
-        cursor: pointer;
-        position: relative;
+      width:16px; height:16px; display:grid; place-items:center;
+      border-radius:4px; border:1px solid #2b3036; background:#1b1f23; color:#9aa4ad; font-size:11px;
+      cursor:default;
     }
-
-    .tooltip {
-        position: relative;
-        display: inline-block;
+    .tooltiptext {
+      position:absolute; left:50%; transform:translate(-80%,130%); bottom:150%;
+      background:#15181c; color:#e7e9ea; border:1px solid #2b3036; border-radius:8px; padding:8px; width:240px;
+      opacity:0; pointer-events:none; transition: opacity .15s ease; z-index:10;
     }
+    .tooltip:hover .tooltiptext { opacity:1; }
 
-    .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 200px;
-        background-color: #f0f0f0;
-        color: #000;
-        text-align: center;
-        border-radius: 6px;
-        padding: 5px;
-        position: absolute;
-        z-index: 100;
-        bottom: -225%;
-        left: 40%;
-        margin-left: -120px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        border: 1px solid #000;
-        transform: translateX(-50%);
+    /* Status / links */
+    .status-panel {
+      flex:1; background:#121519; border:1px solid #1f232b; border-radius:8px; padding:6px 8px; color:#cbd5e1;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
-
-    .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
+    .smaller{
+      font-size: 10px;
     }
-
-        </style>
+    .links { display:flex; gap:10px; }
+  </style>
 </head>
 <body>
-    <div class="window">
-        <div class="title-bar">
-            <div class="title-text">
-                <div class="title-icon">🔊</div>
-                <span>Notification Settings</span>
-            </div>
-
-        </div>
-
-        <div class="content">
-            <div class="group-box">
-                <div class="group-title">General</div>
-                <div class="setting-row">
-                    <div class="checkbox checked" id="enabled-toggle"></div>
-                    <label class="label" for="enabled-toggle">Enable notifications</label>
-                </div>
-                <div class="setting-row">
-                    <div class="checkbox" id="active-tab-toggle"></div>
-                    <label class="label" for="active-tab-toggle">Notify when ChatGPT is active tab</label>
-                    <div class="tooltip">
-                        <span class="info-icon">i</span>
-                        <span class="tooltiptext">When enabled, you will hear a sound even if the ChatGPT tab is currently active. Disable this to only be notified when ChatGPT is in a background tab.</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="group-box">
-                <div class="group-title">Volume</div>
-                <div class="slider-container">
-                    <span>Low</span>
-                    <div class="slider" id="volume-slider-container">
-                        <div class="slider-track"></div>
-                        <div class="slider-thumb" id="volume-thumb" style="left: 70%;"></div>
-                        <input type="range" id="volume-slider" min="0" max="100" value="70" style="opacity: 0; position: absolute; width: 100%; height: 100%; margin: 0; cursor: pointer;">
-                    </div>
-                    <span>High</span>
-                </div>
-                <div class="setting-row" style="justify-content: center; margin-top: 8px;">
-                    <div class="volume-display" id="volume-value">Volume: 70%</div>
-                </div>
-            </div>
-
-            <div class="group-box">
-                <div class="group-title">Notification Sound</div>
-                <div class="setting-row">
-                    <select class="dropdown" id="sound-select">
-                        <option value="cryptic.wav">Bloop</option>
-                        <option value="ding.mp3">Ding</option>
-                        <option value="coin.mp3">Coin</option>
-                        <option value="alert.mp3">Alert</option>
-                        <option value="boop.mp3">Boop</option>
-                        <option value="twelve.wav">Meow</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <button class="button" id="test-sound">Test</button>
-                </div>
-            </div>
-            <div id="status-message" class="status-panel hidden" style="margin: 8px 0; text-align: center;"></div>
-        </div>
-        <div class="group-box collapsible" id="developer-tools">
-            <div class="group-title"><span class="arrow">▶</span> Developer Tools</div>
-            <div class="collapsible-content">
-                <p style="font-size: 10px; color: #666; margin-top: 0; margin-bottom: 8px;">For repeatable testing on the active ChatGPT tab.</p>
-                <div class="setting-row" style="justify-content: center; gap: 8px;">
-                    <button class="button" id="dev-trigger-ding">Trigger Ding</button>
-                    <button class="button" id="dev-reset-count">Reset Count</button>
-                </div>
-            </div>
-        </div>  
-        <div class="status-bar">
-            <div class="status-panel hidden" id="status-panel">Ready</div>
-            <span id="ask"><a target="_blank" href="https://chatdinger.com/review">leave a review...</a></span>
-            <span id="bug"><a target="_blank" href="mailto:moochie@discofish.lol?subject=Chat Dinger Bug Report">report an issue</a></span>
-        </div>
+  <div class="wrap">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tabbtn" id="tab-stats-btn">📊 metrics</button>
+      <button class="tabbtn" id="tab-settings-btn">⚙️ settings</button>
     </div>
 
-    <script src="popup.js"></script>
+    <div class="content">
+      <!-- ===== STATS (HUD) ===== -->
+      <div id="tab-stats">
+        <div class="grid">
+          <div class="card">
+            <div class="label">Dings Today</div>
+            <div id="hud-today" class="value">0</div>
+          </div>
+          <div class="card">
+            <div class="label">Lifetime</div>
+            <div id="hud-lifetime" class="value">0</div>
+          </div>
+          <div class="card">
+            <div class="label">Streak (days)</div>
+            <div id="hud-streak" class="value">0</div>
+          </div>
+          <div class="card">
+            <div class="label">Best Streak (days)</div>
+            <div id="hud-best-streak" class="value">0</div>
+          </div>
+          <div class="card">
+            <div class="label">Total Cook Time</div>
+            <div id="hud-cook-time" class="value">0</div>
+          </div>
+          <div class="card">
+            <div class="label">Longest Cook Time</div>
+            <div id="hud-longest-cook" class="value">0</div>
+          </div>
+        </div>
+
+        <div class="section-title">Level</div>
+        <div class="card">
+          <div class="row-space">
+            <div class="row" style="gap:6px;">
+              <strong>#<span id="hud-level">1</span><span id="hud-title">: Ding-Bat</span></strong>
+              <span class="muted">(<span id="hud-xp">0</span>/<span id="hud-xp-needed">25</span> XP)</span>
+            </div>
+
+          </div>
+          <p id="hud-description" class="smaller">Do you even ding, bro? </p>
+
+          <div class="progress" style="margin-top:8px;">
+            <div id="hud-xp-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div style="display:none" class="section-title">Milestones</div>
+        <div style="display:none" id="hud-milestones" class="grid two">
+          <!-- JS fills -->
+        </div>
+
+        <div class="section-title">Recent Achievements</div>
+        <div id="hud-achievements" style="display:grid; gap:8px;">
+          <!-- JS fills with .achv rows -->
+        </div>
+      </div>
+
+      <!-- ===== SETTINGS ===== -->
+      <div id="tab-settings" class="hidden">
+        <div class="card">
+          <div class="field toggle">
+            <div class="checkbox checked" id="enabled-toggle" role="checkbox" aria-checked="true" tabindex="0"></div>
+            <label class="label" for="enabled-toggle" style="color:#e7e9ea;">Enable notifications</label>
+          </div>
+
+          <div class="field toggle">
+            <div class="checkbox" id="active-tab-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
+            <label class="label" for="active-tab-toggle" style="color:#e7e9ea;">Notify when ChatGPT is active tab</label>
+            <div class="tooltip">
+              <span class="info-icon">i</span>
+              <span class="tooltiptext">
+                When enabled, you will hear a sound even if the ChatGPT tab is currently active.
+                Disable this to only be notified when ChatGPT is in a background tab.
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="margin-top:0;">Volume</div>
+          <div class="slider-wrap">
+            <span class="muted">Low</span>
+            <div class="slider" id="volume-slider-container">
+              <div class="slider-track"></div>
+              <div class="slider-thumb" id="volume-thumb" style="left:70%;"></div>
+              <input type="range" id="volume-slider" min="0" max="100" value="70" />
+            </div>
+            <span class="muted">High</span>
+          </div>
+          <div class="row" style="justify-content:center; margin-top:8px;">
+            <div class="volume-display" id="volume-value">Volume: 70%</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title" style="margin-top:0;">Notification Sound</div>
+          <div class="field">
+            <select class="dropdown" id="sound-select">
+              <option value="cryptic.wav">Bloop</option>
+              <option value="ding.mp3">Ding</option>
+              <option value="coin.mp3">Coin</option>
+              <option value="alert.mp3">Alert</option>
+              <option value="boop.mp3">Boop</option>
+              <option value="twelve.wav">Meow</option>
+            </select>
+          </div>
+          <div class="row" style="gap:8px;">
+            <button id="test-sound" style="padding:8px 10px; border:0; border-radius:8px; background:#3b82f6; color:#fff; cursor:pointer;">Test</button>
+            <button id="dev-reset-count" style="padding:8px 10px; border:1px solid #2b3036; border-radius:8px; background:#1b1f23; color:#e7e9ea; cursor:pointer;">Reset Count</button>
+            <button id="dev-trigger-ding" style="padding:8px 10px; border:1px solid #2b3036; border-radius:8px; background:#1b1f23; color:#e7e9ea; cursor:pointer;">Trigger Ding</button>
+          </div>
+        </div>
+
+        <div id="status-message" class="status-panel hidden" style="margin-top:8px;">Ready</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div id="status-panel" class="status-panel hidden">Ready</div>
+      <div class="links">
+        <a id="ask" target="_blank" href="https://chatdinger.com/review">leave a review</a>
+        <a id="bug" target="_blank" href="mailto:moochie@discofish.lol?subject=Chat Dinger Bug Report">report an issue</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
 </body>
 </html>

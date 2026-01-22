@@ -1,40 +1,47 @@
-# chatdinger 🔔
+# Chat Dinger 🔔
 
-the Chrome extension that adds notification sounds to ChatGPT—because let's be honest, this should just be a built-in feature.
+A Chrome extension that plays a sound when ChatGPT finishes generating a response.
 
-OpenAI, if you are reading this, put me out of my misery. make this a native feature on desktop. please.
+Switch tabs, do other things, and never miss when your response is ready.
 
-## What it does
-Makes your chats go "ding" when responses come in. Currently works for:
-- chatgpt.com
+<!-- ![Chat Dinger popup](screenshot.png) -->
 
-More platforms coming eventually (maybe).
+## Install
 
-## Why unofficial?
-There's no point making this an official Chrome Web Store extension when chatgpt.com should really just add this feature themselves. Until they do, here we are.
+**[Chrome Web Store](https://chromewebstore.google.com/detail/chat-dinger-chatgpt-notif/kkpdpkhnioiapldpimpdlleonejkkddb)** (recommended)
 
-## Installation
+Or install from source – see [Development](#development) below.
 
-go to https://chatdinger.com
+## Features
 
-or download the dev version...
+- **Sound notifications** – Plays when ChatGPT stops generating
+- **Works in background** – Notifies even when the tab is hidden or minimized
+- **Mute toggle** – Quick mute button right in the ChatGPT composer
+- **Multiple sounds** – Choose from several notification tones
+- **Stats tracking** – Tracks your dings, streaks, and "cook time"
+- **Remote selectors** – UI detection updates automatically if ChatGPT changes their layout
 
-1. **Download**: Click the green "Code" button above → "Download ZIP"
-2. **Extract**: Double-click the ZIP file (Mac) or right-click → "Extract All" (Windows)
-3. **Move to safety**: Put the unzipped folder somewhere permanent like your Documents folder
-4. **Chrome setup**: 
-   - Go to `chrome://extensions` in your address bar
-   - Toggle on "Developer mode" (top right)
-   - Click "Load unpacked" 
-   - Select your unzipped chatdinger folder
-5. **Enable**: Toggle the extension on
-6. **Enjoy**: Your chats now ding ✨
+## Why?
 
-## Need help?
-If these steps don't make sense, just ask any AI: *"I'm trying to install a Chrome extension from GitHub, help walk me through the steps."*
+This should be a built-in feature. OpenAI, if you're reading this: please just add this to ChatGPT and put me out of my misery.
+
+Until then, here we are.
+
+## Development
+
+1. Clone or download this repo
+2. Go to `chrome://extensions`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" and select the project folder
 
 ## Contributing
-Found a bug? Want to add support for another chat platform? Feel free to open an issue or submit a PR.
+
+Found a bug? Want to add support for another chat platform? Open an issue or submit a PR.
+
+## License
+
+MIT
 
 ---
-*Made with ♥ for people who like to know when their AI is done thinking*
+
+*Made for people who like to know when their AI is done thinking*

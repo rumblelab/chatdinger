@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Chat Dinger - ChatGPT Notification Sounds",
+  "name": "Chat Dinger - ChatGPT Notification Sounds and Stats",
   "short_name": "Chat Dinger",
-  "version": "1.3.6",
+  "version": "2.0.2",
   "description": "Never miss when ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
   "permissions": [
     "storage",    

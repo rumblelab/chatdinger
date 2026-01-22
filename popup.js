@@ -8,6 +8,7 @@ const volumeThumb = document.getElementById('volume-thumb');
 const activeTabToggle = document.getElementById('active-tab-toggle');
 
 let onChatGPTPage = false;
+let lastSavedSettings = {};
 
 const defaultSettings = {
   enabled: true,
@@ -106,53 +107,206 @@ async function getChatGPTTabs() {
 
 async function saveSettings() {
   try {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.runtime?.id) {
-      await chrome.storage.local.set({ chatAlertSettings: currentSettings });
-      await logIfDev('log', 'Settings saved:', currentSettings);
+    if (!(typeof chrome !== 'undefined' && chrome.storage && chrome.runtime?.id)) return;
+
+    // 1) Persist
+    await chrome.storage.local.set({ chatAlertSettings: currentSettings });
+    await logIfDev('log', 'Settings saved:', currentSettings);
+
+    // 2) Decide who needs to know
+    const prev = lastSavedSettings || {};
+    const next = currentSettings || {};
+    const changedKeys = Object.keys(next).filter(k => prev[k] !== next[k]);
+
+    // Only changes that affect page behavior should be sent to tabs.
+    // Mute/volume/sound are audio-only -> background/offscreen can handle them.
+    const pageAffectingKeys = new Set(['notifyOnActiveTab']); // add to this later if truly needed
+    const shouldNotifyTabs = changedKeys.some(k => pageAffectingKeys.has(k));
+
+    // Always tell background/offscreen so it uses the latest mute/volume/sound.
+    try {
+      await chrome.runtime.sendMessage({ action: 'settingsUpdated', settings: next });
+    } catch (e) {
+      await logIfDev('warn', 'Could not notify background about settingsUpdated:', e?.message);
+    }
+
+    if (shouldNotifyTabs) {
       const tabs = await getChatGPTTabs();
       for (const tab of tabs) {
         try {
-          await chrome.tabs.sendMessage(tab.id, {
-            action: 'settingsUpdated',
-            settings: currentSettings
-          });
-          await logIfDev('log', `Settings sent to tab ${tab.id}`);
+          await chrome.tabs.sendMessage(tab.id, { action: 'settingsUpdated', settings: next });
+          await logIfDev('log', `settingsUpdated sent to tab ${tab.id}`);
         } catch (e) {
-          if (e.message.includes("Could not establish connection") || e.message.includes("Receiving end does not exist")) {
-            await logIfDev('warn', `Could not send settings to tab ${tab.id}. Content script might not be active.`);
+          if (e.message?.includes("Could not establish connection") || e.message?.includes("Receiving end does not exist")) {
+            await logIfDev('warn', `Tab ${tab.id} not reachable for settingsUpdated.`);
           } else {
-            console.error(`Popup: Error sending settings to tab ${tab.id}:`, e.message);
+            console.error(`Popup: Error sending settingsUpdated to tab ${tab.id}:`, e.message);
           }
         }
       }
     }
+
+    lastSavedSettings = { ...next };
   } catch (error) {
     console.error("Chat Dinger: Error saving settings:", error);
     showStatus('Failed to save settings', true);
   }
 }
 
+// ---- Tabs ----
+const tabStatsBtn = document.getElementById('tab-stats-btn');
+const tabSettingsBtn = document.getElementById('tab-settings-btn');
+const tabStats = document.getElementById('tab-stats');
+const tabSettings = document.getElementById('tab-settings');
+
+function showTab(which) {
+  if (which === 'stats') {
+    tabStats.classList.remove('hidden');
+    tabSettings.classList.add('hidden');
+    tabStatsBtn.disabled = true;
+    tabSettingsBtn.disabled = false;
+  } else {
+    tabSettings.classList.remove('hidden');
+    tabStats.classList.add('hidden');
+    tabSettingsBtn.disabled = true;
+    tabStatsBtn.disabled = false;
+    requestAnimationFrame(() => updateVolumeDisplay());
+
+  }
+}
+tabStatsBtn.addEventListener('click', () => showTab('stats'));
+tabSettingsBtn.addEventListener('click', () => showTab('settings'));
+showTab('stats');
+
+
+// ---- HUD rendering ----
+const elToday = document.getElementById('hud-today');
+const elLifetime = document.getElementById('hud-lifetime');
+const elStreak = document.getElementById('hud-streak');
+const elBestStreak = document.getElementById('hud-best-streak');
+const elCookTime = document.getElementById('hud-cook-time');
+const elLongestCook = document.getElementById('hud-longest-cook');
+const elLevel = document.getElementById('hud-level');
+const elTitle = document.getElementById('hud-title');
+const elDesc = document.getElementById('hud-description');
+const elXpBar = document.getElementById('hud-xp-bar');
+const elXp = document.getElementById('hud-xp');
+const elXpNeeded = document.getElementById('hud-xp-needed');
+const elMilestones = document.getElementById('hud-milestones');
+const elAchievements = document.getElementById('hud-achievements');
+
+function levelFromTotal(total) {
+  // 25 dings per level. XP is remainder toward next level.
+  const lvl = Math.floor(total / 25) + 1;
+  const xp = total % 25;
+  const need = 25;
+  return { lvl, xp, need, pct: (xp / need) * 100 };
+}
+
+function renderMilestones(total) {
+  const targets = [1, 10, 25, 50, 100, 250, 500, 1000];
+  elMilestones.innerHTML = '';
+  targets.forEach(t => {
+    const done = total >= t;
+    const card = document.createElement('div');
+    card.style.cssText = 'border:1px inset #c0c0c0; background:#000; padding:6px;';
+    card.innerHTML = `${done ? '✅' : '⬜️'} ${t} dings`;
+    elMilestones.appendChild(card);
+  });
+}
+
+function renderAchievements(list) {
+  elAchievements.innerHTML = '';
+  (list || []).slice(-6).reverse().forEach(a => {
+    const li = document.createElement('li');
+    li.textContent = a;
+    elAchievements.appendChild(li);
+  });
+}
+
+async function loadMetricsAndRender() {
+  try {
+    const { soundPlayCount = 0, dingerMetrics = null } =
+    await chrome.storage.local.get(['soundPlayCount', 'dingerMetrics']);
+    const today = dingerMetrics?.todayCount || 0;
+    const lifetime = dingerMetrics?.total || soundPlayCount || 0;
+    const streak = dingerMetrics?.streak || 0;
+    const best = dingerMetrics?.bestStreak || 0;
+    const totalGenTime = dingerMetrics?.totalGenTime || 0;
+    const longestGenTime = dingerMetrics?.longestGenTime || 0;
+
+    elToday.textContent = today;
+    elLifetime.textContent = lifetime;
+    elStreak.textContent = streak;
+    elBestStreak.textContent = best;
+    elCookTime.textContent = formatCookTime(totalGenTime);
+    elLongestCook.textContent = formatCookTime(longestGenTime);
+
+    const { lvl, xp, need, pct } = levelFromTotal(lifetime);
+    elLevel.textContent = lvl;
+    elXp.textContent = xp;
+    elXpNeeded.textContent = need;
+    elXpBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+
+    renderMilestones(lifetime);
+    renderAchievements(dingerMetrics?.achievements || []);
+  } catch (e) {
+    console.warn('HUD load failed:', e);
+  }
+}
+
+function formatCookTime(t){
+  let time='';
+  if(t/1000/60/60/24>1){
+    time='🤯'
+  }
+  else if(t/1000/60/60>1){
+    time=`${(t/1000/60/60).toFixed(1)} h`;
+  }
+  else if (t/1000/60>1){
+    time=`${(t/1000/60).toFixed(1)} m`;
+  }
+  else{
+    time = `${(t/1000).toFixed(1)} s`
+  }
+  return time;
+}
+
+// initial + refresh on storage changes
+loadMetricsAndRender();
+chrome.storage.onChanged.addListener((changes, ns) => {
+  if (ns === 'local' && (changes.dingerMetrics || changes.soundPlayCount)) {
+    loadMetricsAndRender();
+  }
+});
+
+
 function updateUI() {
-  enabledToggle.classList.toggle('checked', currentSettings.enabled);
-  activeTabToggle.classList.toggle('checked', currentSettings.notifyOnActiveTab);
-  const volumePercent = Math.round(currentSettings.volume * 100);
-  volumeSlider.value = volumePercent;
-  updateVolumeDisplay();
+  enabledToggle.classList.toggle('checked', !!currentSettings.enabled);
+  activeTabToggle.classList.toggle('checked', !!currentSettings.notifyOnActiveTab);
+
+  const pct = Math.round(((currentSettings.volume ?? 0.7) * 100));
+  volumeSlider.value = String(pct);
+
   soundSelect.value = currentSettings.selectedSound;
+  updateVolumeDisplay();
 }
 
 function updateVolumeDisplay() {
-  const volume = parseInt(volumeSlider.value);
+  // read % from the input (0–100)
+  let volume = Number(volumeSlider.value);
+  if (!Number.isFinite(volume)) volume = Math.round((currentSettings.volume ?? 0.7) * 100);
+
+  // text
   volumeValue.textContent = `Volume: ${volume}%`;
-  const sliderContainer = document.getElementById('volume-slider-container');
-  if (sliderContainer) {
-    const containerWidth = sliderContainer.offsetWidth;
-    const thumbWidth = volumeThumb.offsetWidth || 16;
-    const trackWidth = containerWidth - 4;
-    const thumbPosition = ((volume / 100) * (trackWidth - thumbWidth)) + 2;
-    volumeThumb.style.left = `${Math.max(2, Math.min(thumbPosition, trackWidth - thumbWidth + 2))}px`;
+
+  // move the visual thumb by percentage; translateX(-50%) keeps it centered
+  if (volumeThumb) {
+    volumeThumb.style.left = `${volume}%`;
+    volumeThumb.style.transform = 'translateX(-50%)';
   }
 }
+
 
 function getNotificationStatus() {
   return {
@@ -306,8 +460,10 @@ enabledToggle.addEventListener('click', async function() {
 });
 
 volumeSlider.addEventListener('input', () => {
+  let volumePct = Number(volumeSlider.value);
+  if (!Number.isFinite(volumePct)) volumePct = 70;
+  currentSettings.volume = Math.max(0, Math.min(1, volumePct / 100));
   updateVolumeDisplay();
-  currentSettings.volume = parseInt(volumeSlider.value) / 100;
 });
 
 volumeSlider.addEventListener('change', async () => {

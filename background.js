@@ -1,28 +1,35 @@
+const defaultSettings = {
+  enabled: true,
+  isMuted: false,
+  volume: 0.7,
+  selectedSound: 'cryptic.wav',
+  enableNotifications: true,
+  notifyOnActiveTab: true
+};
+
 chrome.runtime.onInstalled.addListener((details) => {
-  // Detect dev mode
   const manifest = chrome.runtime.getManifest();
   const isDevMode = !manifest.update_url;
   chrome.storage.local.set({ isDevMode }).catch(e => console.error('Chat Dinger: Failed to set dev mode flag:', e.message));
 
   if (details.reason === 'install') {
-    chrome.storage.local.set({
-      chatAlertSettings: {
-        enabled: true,
-        volume: 0.7,
-        selectedSound: 'cryptic.wav',
-        enableNotifications: true,
-        notifyOnActiveTab: true
-      }
-    }).catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
+    chrome.storage.local.set({ chatAlertSettings: defaultSettings })
+      .catch(e => console.error('Chat Dinger: Failed to set default settings:', e.message));
+  } else if (details.reason === 'update') {
+    chrome.storage.local.get('chatAlertSettings').then(result => {
+      const currentSettings = result.chatAlertSettings;
+      const newSettings = { ...defaultSettings, ...currentSettings };
+      chrome.storage.local.set({ chatAlertSettings: newSettings })
+        .catch(e => console.error('Chat Dinger: Failed to migrate settings:', e.message));
+    }).catch(e => console.error('Chat Dinger: Failed to get settings for migration:', e.message));
   }
   setupPeriodicCleanup();
+  setupRemoteSelectorFetching();
 });
 
 // Logging utility
 async function logIfDev(level, ...args) {
   if (!chrome.runtime?.id||!chrome.storage?.local) {
-    // The context has been invalidated, so we can't use any chrome.* APIs.
-    // Silently return to prevent the error.
     return;
   }
   try {
@@ -30,32 +37,86 @@ async function logIfDev(level, ...args) {
     if (isDevMode) {
       switch (level) {
         case 'log':
-          console.log('Chat Dinger:', ...args);
+          console.log('Chat Dinger BG:', ...args);
           break;
         case 'warn':
-          console.warn('Chat Dinger:', ...args);
+          console.warn('Chat Dinger BG:', ...args);
           break;
         case 'error':
-          console.error('Chat Dinger:', ...args);
+          console.error('Chat Dinger BG:', ...args);
           break;
       }
     }
   } catch (e) {
-    console.error('Chat Dinger: Failed to check dev mode for logging:', e.message);
+    console.error('Chat Dinger BG: Failed to check dev mode for logging:', e.message);
   }
 }
 
+// ======== ARCHITECTURE REWRITE: START ========
+// The background script is now the single source of truth for settings.
+async function handleToggleMute(sendResponse) {
+  try {
+    const { chatAlertSettings = defaultSettings } = await chrome.storage.local.get(['chatAlertSettings']);
+    
+    // Create a new object with the toggled mute state
+    const newSettings = {
+      ...chatAlertSettings,
+      isMuted: !chatAlertSettings.isMuted 
+    };
+    
+    // Save the new settings object to storage
+    await chrome.storage.local.set({ chatAlertSettings: newSettings });
+    
+    await logIfDev('log', `Mute state toggled to ${newSettings.isMuted}. Storage updated.`);
+    sendResponse({ success: true, isMuted: newSettings.isMuted });
+
+  } catch (error) {
+    console.error('Chat Dinger BG: Failed to toggle mute state.', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+// ======== ARCHITECTURE REWRITE: END ========
+
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'testSound') {
-    handleTestSound(message, sendResponse);
-    return true;
+  // Use a switch for clarity and scalability
+  switch (message.action) {
+    case 'toggleMute':
+      handleToggleMute(sendResponse);
+      return true; // Keep message channel open for async response
+
+    case 'testSound':
+      handleTestSound(message, sendResponse);
+      return true;
+
+    case 'playNotificationSound':
+      handleNotificationSound(message, sendResponse);
+      return true;
+    
+    // The popup can send this to sync its own state if needed
+    case 'settingsUpdated':
+       logIfDev('log', 'Received settingsUpdated message, no action needed in background as storage is the source of truth.');
+       sendResponse({success: true, status: 'acknowledged'});
+       break;
+
+    default:
+      // Optional: handle unknown actions
+      logIfDev('warn', 'Received unknown message action:', message.action);
+      sendResponse({success: false, status: 'Unknown action'});
+      break;
   }
-  if (message.action === 'playNotificationSound') {
-    handleNotificationSound(message, sendResponse);
-    return true;
-  }
-  return true;
+  return false; // No async response needed for synchronous actions
 });
+
+
+function setupRemoteSelectorFetching() {
+  logIfDev('log', 'Setting up remote selector fetching...');
+  // Fetch immediately on setup, then schedule periodic updates.
+  fetchAndUpdateSelectors();
+  chrome.alarms.create('updateSelectorsAlarm', {
+    periodInMinutes: 60 // Repeat every hour
+  });
+}
 
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === 'updateSelectorsAlarm') {
@@ -68,9 +129,13 @@ async function fetchAndUpdateSelectors() {
   try {
     const response = await fetch(selectorUrl);
     const newSelectors = await response.json();
-    if (Array.isArray(newSelectors) && newSelectors.length > 0) {
+    // Check for the new object structure
+    if (newSelectors && typeof newSelectors === 'object' && (newSelectors.mainButtonSelectors || newSelectors.muteToggleSelectors)) {
+      // Store the whole object
       await chrome.storage.local.set({ customSelectors: newSelectors });
-      await logIfDev('log', 'Successfully updated selectors from remote source.');
+      await logIfDev('log', 'Successfully updated selectors from remote source.', newSelectors);
+    } else {
+        await logIfDev('warn', 'Remote selectors have an invalid format.', newSelectors);
     }
   } catch (error) {
     console.error('Chat Dinger: Failed to fetch remote selectors.', error);
@@ -152,22 +217,6 @@ function playTestSoundInTab(soundFile, volume) {
     if (playPromise !== undefined) {
       playPromise.catch(e => {
         console.error(`Chat Dinger (Injected Script): HTML5 Audio playback failed for ${soundFile}: ${e.message} (Name: ${e.name})`);
-        try {
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          if (audioContext.state === 'suspended') { audioContext.resume().catch(er => console.warn("Audio context resume failed", er)); }
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-          gainNode.gain.setValueAtTime((parseFloat(volume) || 0.7) * 0.3, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-          oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
-          oscillator.type = 'sine';
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.3);
-        } catch (fallbackError) {
-          console.error(`Chat Dinger (Injected Script): All audio methods failed for ${soundFile}: ${fallbackError.message}`);
-        }
       });
     }
   } catch (e) {
@@ -179,12 +228,21 @@ async function handleNotificationSound(message, sendResponse) {
   try {
     const result = await chrome.storage.local.get(['chatAlertSettings']);
     const settings = result.chatAlertSettings || {};
+    
+    // Respect the mute setting for notifications
+    if (settings.isMuted) {
+      await logIfDev('log', 'Skipping notification sound because master mute is on.');
+      sendResponse({status: 'Sound skipped due to mute', success: true});
+      return;
+    }
+
     const soundFile = settings.selectedSound || 'cryptic.wav';
-    const volume = settings.volume || 0.7;
+    const volume = (typeof settings.volume === 'number') ? settings.volume : 0.7;
     await playSoundInOffscreen(soundFile, volume);
+
     const title = message.title || 'Chat Dinger';
     const body = message.message || 'Your chat response is ready!';
-    const success = await createBackgroundNotification(title, body, true);
+    const success = await createBackgroundNotification(title, body, true); // Play sound via offscreen, so notification is silent
     sendResponse({ status: 'Offscreen sound and visual notification shown', success: true });
   } catch (error) {
     console.error('Background: Hybrid sound/notification handler error:', error);
@@ -245,6 +303,7 @@ chrome.notifications.onClicked.addListener(async (notificationId) => {
   }
 });
 
+// Periodic cleanup and heartbeat functions remain the same
 let heartbeatInterval = null;
 let heartbeatCount = 0;
 
@@ -256,8 +315,6 @@ function startCriticalTaskHeartbeat() {
       heartbeatCount++;
       await chrome.storage.local.set({
         'last-heartbeat': Date.now(),
-        'heartbeat-count': (await chrome.storage.local.get(['heartbeat-count']))['heartbeat-count'] || 0 + 1,
-        'session-heartbeats': heartbeatCount
       });
       if (heartbeatCount > 15) {
         stopCriticalTaskHeartbeat();
@@ -277,15 +334,6 @@ function stopCriticalTaskHeartbeat() {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'testSound' || message.action === 'playNotificationSound') {
-    startCriticalTaskHeartbeat();
-    setTimeout(() => {
-      stopCriticalTaskHeartbeat();
-    }, 8000);
-  }
-});
-
 chrome.runtime.onSuspend.addListener(() => {
   stopCriticalTaskHeartbeat();
 });
@@ -293,6 +341,7 @@ chrome.runtime.onSuspend.addListener(() => {
 chrome.runtime.onStartup.addListener(() => {
   stopCriticalTaskHeartbeat();
   setupPeriodicCleanup();
+  setupRemoteSelectorFetching();
 });
 
 function setupPeriodicCleanup() {
@@ -306,19 +355,8 @@ function setupPeriodicCleanup() {
 }
 
 function cleanupOldStorage() {
-  chrome.storage.local.get(null).then(items => {
-    const now = Date.now();
-    const keysToRemove = [];
-    for (const [key, value] of Object.entries(items)) {
-      if ((key.startsWith('last-heartbeat') || key.startsWith('heartbeat-count') || key.startsWith('session-heartbeats')) &&
-          typeof value === 'number' && (now - items['last-heartbeat'] > 7200000)) {
-        keysToRemove.push(key);
-      }
-    }
-    if (keysToRemove.length > 0) {
-      chrome.storage.local.remove(keysToRemove);
-    }
-    chrome.storage.local.set({ 'last-cleanup': now });
+  chrome.storage.local.remove(['last-heartbeat', 'heartbeat-count', 'session-heartbeats']).then(() => {
+    chrome.storage.local.set({ 'last-cleanup': Date.now() });
   }).catch(e => console.warn('Chat Dinger: Storage cleanup failed:', e.message));
 }
 
