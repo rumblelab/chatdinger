@@ -649,7 +649,7 @@ function injectComposerMuteToggle() {
     return;
   }
 
-  const dictateSpan = dictateButton.closest('span');
+  const dictateSpan = dictateButton.closest('span.inline-flex');
   if (!dictateSpan) {
     logIfDev('warn', 'Span wrapping dictate button not found.');
     return;
