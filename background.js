@@ -92,7 +92,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'playNotificationSound':
       handleNotificationSound(message, sendResponse);
       return true;
-    
+
+    case 'refreshSelectors':
+      handleRefreshSelectors(sendResponse);
+      return true;
+
     // The popup can send this to sync its own state if needed
     case 'settingsUpdated':
        logIfDev('log', 'Received settingsUpdated message, no action needed in background as storage is the source of truth.');
@@ -107,6 +111,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   return false; // No async response needed for synchronous actions
 });
+
+const SELECTOR_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+async function handleRefreshSelectors(sendResponse) {
+  try {
+    const { lastSelectorRefresh = 0 } = await chrome.storage.local.get(['lastSelectorRefresh']);
+    const now = Date.now();
+    if (now - lastSelectorRefresh < SELECTOR_REFRESH_COOLDOWN_MS) {
+      await logIfDev('log', `refreshSelectors skipped — cooldown (${Math.round((now - lastSelectorRefresh) / 1000)}s since last).`);
+      sendResponse({ success: false, status: 'cooldown' });
+      return;
+    }
+    await chrome.storage.local.set({ lastSelectorRefresh: now });
+    await fetchAndUpdateSelectors();
+    sendResponse({ success: true });
+  } catch (e) {
+    console.error('Chat Dinger BG: refreshSelectors failed:', e);
+    sendResponse({ success: false, error: e.message });
+  }
+}
 
 
 function setupRemoteSelectorFetching() {
@@ -127,15 +150,16 @@ chrome.alarms.onAlarm.addListener(alarm => {
 async function fetchAndUpdateSelectors() {
   const selectorUrl = 'https://chatdinger.com/selectors.json';
   try {
-    const response = await fetch(selectorUrl);
+    // `no-cache` forces revalidation against the origin (sends If-None-Match /
+    // If-Modified-Since). Without it, Chrome's heuristic cache can serve stale
+    // selectors for hours when the server omits Cache-Control.
+    const response = await fetch(selectorUrl, { cache: 'no-cache' });
     const newSelectors = await response.json();
-    // Check for the new object structure
     if (newSelectors && typeof newSelectors === 'object' && (newSelectors.mainButtonSelectors || newSelectors.muteToggleSelectors)) {
-      // Store the whole object
       await chrome.storage.local.set({ customSelectors: newSelectors });
       await logIfDev('log', 'Successfully updated selectors from remote source.', newSelectors);
     } else {
-        await logIfDev('warn', 'Remote selectors have an invalid format.', newSelectors);
+      await logIfDev('warn', 'Remote selectors have an invalid format.', newSelectors);
     }
   } catch (error) {
     console.error('Chat Dinger: Failed to fetch remote selectors.', error);

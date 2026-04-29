@@ -203,6 +203,129 @@ function levelFromTotal(total) {
   return { lvl, xp, need, pct: (xp / need) * 100 };
 }
 
+const TITLE_LADDER = [
+  { minLevel: 1,   title: 'Ding-Bat',          description: 'Do you even ding, bro?' },
+  { minLevel: 2,   title: 'Ding Curious',      description: 'You felt something. That was the ding.' },
+  { minLevel: 4,   title: 'Ding Apprentice',   description: 'Patiently waiting. Learning the ways.' },
+  { minLevel: 7,   title: 'Bell Hop',          description: 'In the lobby, ready for incoming.' },
+  { minLevel: 11,  title: 'Ding Whisperer',    description: 'You hear it before it rings.' },
+  { minLevel: 16,  title: 'Bell Ringer',       description: 'Quietly competent. Always on time.' },
+  { minLevel: 22,  title: 'Ding Devotee',      description: 'You have a favorite sound now. Don\'t lie.' },
+  { minLevel: 30,  title: 'Sultan of Ding',    description: 'You ding with authority.' },
+  { minLevel: 40,  title: 'Ding Sage',         description: 'Wisdom comes one ding at a time.' },
+  { minLevel: 55,  title: 'Ding Oracle',       description: 'You know what it\'ll say. You just like the chime.' },
+  { minLevel: 75,  title: 'Lord of the Dings', description: 'One ding to rule them all.' },
+  { minLevel: 100, title: 'Ding Deity',        description: 'The chime is yours to grant.' },
+  { minLevel: 150, title: 'Dingularity',       description: 'Indistinguishable from the bell itself.' },
+];
+
+function titleForLevel(lvl) {
+  let pick = TITLE_LADDER[0];
+  for (const tier of TITLE_LADDER) {
+    if (lvl >= tier.minLevel) pick = tier;
+    else break;
+  }
+  return pick;
+}
+
+const SOUND_LABELS = {
+  'cryptic.wav': 'Bloop',
+  'ding.mp3': 'Ding',
+  'claude.mp3': 'Claude',
+  'nylon.mp3': 'Nylon',
+  'pew.wav': 'Pew',
+  'coin.mp3': 'Coin',
+  'alert.mp3': 'Alert',
+  'boop.mp3': 'Boop',
+  'twelve.wav': 'Meow',
+};
+
+function deriveIdentity(m) {
+  if (!m || (m.total || 0) < 5) return '';
+  const tags = [];
+
+  // Time-of-day signal
+  const buckets = m.timeBuckets || {};
+  const totalBucketed = (buckets.lateNight || 0) + (buckets.morning || 0) + (buckets.afternoon || 0) + (buckets.evening || 0);
+  if (totalBucketed >= 5) {
+    const top = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0];
+    if (top && top[1] / totalBucketed >= 0.4) {
+      const labels = { lateNight: 'Night Owl 🌙', morning: 'Early Riser ☀️', afternoon: 'Afternoon Operator', evening: 'Evening Regular' };
+      if (labels[top[0]]) tags.push(labels[top[0]]);
+    }
+  }
+
+  // Weekend vs weekday
+  const wd = m.weekdayCount || 0;
+  const we = m.weekendCount || 0;
+  if (wd + we >= 10) {
+    if (we / (wd + we) >= 0.5) tags.push('Weekend Warrior');
+    else if (wd / (wd + we) >= 0.85) tags.push('Strictly Business');
+  }
+
+  // Signature sound
+  const sounds = m.soundsUsed || {};
+  const soundEntries = Object.entries(sounds);
+  if (soundEntries.length) {
+    const totalSounds = soundEntries.reduce((s, [, n]) => s + n, 0);
+    const top = soundEntries.sort((a, b) => b[1] - a[1])[0];
+    if (top && totalSounds >= 5 && top[1] / totalSounds >= 0.5) {
+      const label = SOUND_LABELS[top[0]] || top[0].split('.')[0];
+      tags.push(`Signature: ${label}`);
+    }
+  }
+
+  return tags.slice(0, 2).join(' · ');
+}
+
+// Achievement targets the user can progress toward. Picked dynamically.
+function nextAchievement(m) {
+  const total = m.total || 0;
+  const streak = m.streak || 0;
+  const distinctSounds = Object.keys(m.soundsUsed || {}).length;
+
+  const candidates = [
+    { id: 'first',       label: 'First Ding',        current: total,           goal: 1 },
+    { id: 'd10',         label: 'Ding Apprentice',   current: total,           goal: 10 },
+    { id: 'd50',         label: 'Ding Devotee',      current: total,           goal: 50 },
+    { id: 'd100',        label: 'Ding Centurion',    current: total,           goal: 100 },
+    { id: 'd250',        label: 'Quarter Grand',     current: total,           goal: 250 },
+    { id: 'd500',        label: 'Half-K Hero',       current: total,           goal: 500 },
+    { id: 'd1000',       label: 'Kilo-Dinger',       current: total,           goal: 1000 },
+    { id: 'd2500',       label: 'Mega Dinger',       current: total,           goal: 2500 },
+    { id: 'd10000',      label: 'Dingstronaut',      current: total,           goal: 10000 },
+    { id: 'streak3',     label: '3-Day Streak 🔥',   current: streak,          goal: 3 },
+    { id: 'streak7',     label: '7-Day Streak 🔥🔥', current: streak,          goal: 7 },
+    { id: 'streak30',    label: 'Monthly Streak 🔥', current: streak,          goal: 30 },
+    { id: 'sounds3',     label: 'Sound Sampler 🎧', current: distinctSounds,  goal: 3 },
+    { id: 'sounds5',     label: 'Sound DJ 🎛️',      current: distinctSounds,  goal: 5 },
+  ];
+
+  const pending = candidates.filter(c => c.current < c.goal);
+  if (!pending.length) return null;
+
+  // Prefer the one closest to completion by ratio
+  pending.sort((a, b) => (b.current / b.goal) - (a.current / a.goal));
+  return pending[0];
+}
+
+function renderNextAchievement(m) {
+  const next = nextAchievement(m);
+  const title = document.getElementById('hud-next-title');
+  const meta = document.getElementById('hud-next-meta');
+  const bar = document.getElementById('hud-next-bar');
+  if (!next) {
+    title.textContent = 'All caught up — legend status 👑';
+    meta.textContent = '';
+    bar.style.width = '100%';
+    return;
+  }
+  title.textContent = next.label;
+  meta.textContent = `${next.current}/${next.goal}`;
+  const pct = Math.max(0, Math.min(100, (next.current / next.goal) * 100));
+  bar.style.width = `${pct}%`;
+}
+
 function renderMilestones(total) {
   const targets = [1, 10, 25, 50, 100, 250, 500, 1000];
   elMilestones.innerHTML = '';
@@ -217,42 +340,110 @@ function renderMilestones(total) {
 
 function renderAchievements(list) {
   elAchievements.innerHTML = '';
-  (list || []).slice(-6).reverse().forEach(a => {
-    const li = document.createElement('li');
-    li.textContent = a;
-    elAchievements.appendChild(li);
+  if (!list || !list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted smaller';
+    empty.textContent = 'No achievements yet — keep dinging.';
+    elAchievements.appendChild(empty);
+    return;
+  }
+  list.slice(-6).reverse().forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'achv';
+    row.innerHTML = `<div class="badge">🏆</div><div><div class="title">${a}</div></div>`;
+    elAchievements.appendChild(row);
   });
 }
+
+let lastRenderedStats = null;
 
 async function loadMetricsAndRender() {
   try {
     const { soundPlayCount = 0, dingerMetrics = null } =
     await chrome.storage.local.get(['soundPlayCount', 'dingerMetrics']);
-    const today = dingerMetrics?.todayCount || 0;
-    const lifetime = dingerMetrics?.total || soundPlayCount || 0;
-    const streak = dingerMetrics?.streak || 0;
-    const best = dingerMetrics?.bestStreak || 0;
-    const totalGenTime = dingerMetrics?.totalGenTime || 0;
-    const longestGenTime = dingerMetrics?.longestGenTime || 0;
+    const m = dingerMetrics || {};
+    const today = m.todayCount || 0;
+    const lifetime = m.total || soundPlayCount || 0;
+    const streak = m.streak || 0;
+    const best = m.bestStreak || 0;
+    const totalGenTime = m.totalGenTime || 0;
+    const longestGenTime = m.longestGenTime || 0;
+    const avgGenTime = m.avgGenTime || 0;
 
     elToday.textContent = today;
-    elLifetime.textContent = lifetime;
+    elLifetime.textContent = lifetime.toLocaleString();
     elStreak.textContent = streak;
     elBestStreak.textContent = best;
     elCookTime.textContent = formatCookTime(totalGenTime);
     elLongestCook.textContent = formatCookTime(longestGenTime);
 
+    const cookSub = document.getElementById('hud-cook-sub');
+    if (cookSub) {
+      const longest = longestGenTime ? formatCookTime(longestGenTime) : '—';
+      const avg = avgGenTime ? formatCookTime(avgGenTime) : '—';
+      cookSub.textContent = `longest ${longest} · avg ${avg}`;
+    }
+
     const { lvl, xp, need, pct } = levelFromTotal(lifetime);
+    const tier = titleForLevel(lvl);
     elLevel.textContent = lvl;
+    elTitle.textContent = `: ${tier.title}`;
+    elDesc.textContent = tier.description;
     elXp.textContent = xp;
     elXpNeeded.textContent = need;
     elXpBar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
 
+    const identityEl = document.getElementById('hud-identity');
+    if (identityEl) {
+      const identity = deriveIdentity(m);
+      if (identity) {
+        identityEl.textContent = identity;
+        identityEl.classList.remove('hidden');
+      } else {
+        identityEl.classList.add('hidden');
+      }
+    }
+
     renderMilestones(lifetime);
-    renderAchievements(dingerMetrics?.achievements || []);
+    renderNextAchievement(m);
+    renderAchievements(m.achievements || []);
+
+    lastRenderedStats = { lvl, title: tier.title, lifetime, totalGenTime, streak, best };
   } catch (e) {
     console.warn('HUD load failed:', e);
   }
+}
+
+function buildShareString() {
+  if (!lastRenderedStats) return '';
+  const { lvl, title, lifetime, totalGenTime, streak } = lastRenderedStats;
+  const parts = [
+    `${lifetime.toLocaleString()} dings`,
+    `${formatCookTime(totalGenTime)} cook time`,
+    `Lvl ${lvl} ${title}`,
+  ];
+  if (streak >= 3) parts.push(`${streak}-day streak 🔥`);
+  return `🔔 ChatDinger: ${parts.join(' · ')}`;
+}
+
+const shareBtn = document.getElementById('share-stats');
+if (shareBtn) {
+  shareBtn.addEventListener('click', async () => {
+    const text = buildShareString();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      const original = shareBtn.textContent;
+      shareBtn.textContent = '✓ copied';
+      shareBtn.classList.add('copied');
+      setTimeout(() => {
+        shareBtn.textContent = original;
+        shareBtn.classList.remove('copied');
+      }, 1500);
+    } catch (e) {
+      showStatus('Could not copy to clipboard', true);
+    }
+  });
 }
 
 function formatCookTime(t){

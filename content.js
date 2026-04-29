@@ -18,11 +18,21 @@ let settings = {
 
 let chatgptButtonInstance = null;
 let chatgptIsGenerating = false;
-let chatgptFirstGenerationCheck = true;
 let chatgptAttributeChangeObserver = null;
 let chatgptButtonRemovedObserver = null;
 let chatgptInitialButtonFinderObserver = null;
 let canPlayAlertSound = true;
+
+// State-transition (same-element attribute flip) debounce. Short — these
+// transitions happen in tens of ms, this just absorbs micro-flickers.
+const IDLE_TRANSITION_DEBOUNCE_MS = 350;
+// Removal-path debounce. The button gets unmounted/remounted (slower than an
+// attribute flip), so we give it more room. Note: this can produce a rogue
+// ding during image-generation text→image transitions (where the button sits
+// in idle state for ~6s between phases). Extending the wait that far makes
+// regular completions feel laggy, so we accept the occasional rogue.
+const REMOVAL_DEBOUNCE_MS = 1500;
+let pendingDingTimeout = null;
 
 // Composer mute toggle variables
 let composerMuteToggle = null;
@@ -92,11 +102,15 @@ const SITE = (() => {
 const CHATGPT_BUTTON_SELECTORS = [
   '#composer-submit-button',
   'button[data-testid$="send-button"]',
-  'button[data-testid$="stop-button"]'
+  'button[data-testid$="stop-button"]',
+  // Fallback for the new ChatGPT DOM: when the composer is empty, the only
+  // button at the submit position is "Start Voice" (no send/stop testid).
+  // The composer-submit-button-color class persists across Voice → Send → Stop.
+  'button.composer-submit-button-color'
 ];
 
 const DEFAULT_MUTE_TOGGLE_SELECTORS = {
-  dictateButton: 'button[aria-label="Dictate button"]',
+  dictateButton: 'button[aria-label="Start dictation"], button[aria-label="Dictate button"]',
   flexWrapper: '[class*="items-center"][class*="gap-1.5"]'
 };
 
@@ -187,26 +201,25 @@ function getChatGPTButtonState(button) {
     return { isGenerating: false, method: 'invalid-element' };
   }
   const testId = button.getAttribute('data-testid') || '';
-  const isDisabled = button.disabled;
-  const svgPathData = button.querySelector('svg path')?.getAttribute('d') || '';
+  const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
 
-  // Method 1: data-testid (Highest confidence)
+  // Method 1: data-testid (highest confidence). The send-button means
+  // generation is NOT happening — even when disabled (empty composer).
   if (testId.endsWith('stop-button') || testId.includes('stop')) {
     return { isGenerating: true, method: `testid-stop: ${testId}` };
   }
   if (testId.endsWith('send-button')) {
-    // When the "send" button is disabled, generation is in progress.
-    return { isGenerating: isDisabled, method: `testid-send: ${testId}` };
+    return { isGenerating: false, method: `testid-send: ${testId}` };
   }
 
-  // Method 2: SVG path data (Good language-agnostic fallback)
-  // The "stop" square icon has a very simple path.
-  if (svgPathData.length < 100 && isDisabled) { 
-    return { isGenerating: true, method: 'svg-stop-icon' };
+  // Method 2: aria-label fallback for when ChatGPT changes testids.
+  if (ariaLabel.includes('stop')) {
+    return { isGenerating: true, method: `aria-stop: ${ariaLabel}` };
   }
-  
-  // Final Fallback: The most basic check is if the button is disabled.
-  return { isGenerating: isDisabled, method: 'disabled-fallback' };
+
+  // Default: assume not generating. Don't infer from `disabled` alone —
+  // an empty composer disables the send button without any generation.
+  return { isGenerating: false, method: 'default-idle' };
 }
 
 // ===== GENERATION-TIME TRACKING (new) =====
@@ -246,18 +259,26 @@ function processChatGPTButtonState(buttonElement) {
   const currentState = getChatGPTButtonState(buttonElement);
   logIfDev('log', `Button Check -> Method: "${currentState.method}", WasGenerating: ${chatgptIsGenerating}, NowGenerating: ${currentState.isGenerating}`);
 
-  // Transition: idle -> generating (start stopwatch)
   if (!chatgptIsGenerating && currentState.isGenerating) {
-    markGenerationStart();
+    if (pendingDingTimeout) {
+      // Idle was a flicker — generation is still going. Cancel pending ding.
+      clearTimeout(pendingDingTimeout);
+      pendingDingTimeout = null;
+    } else {
+      markGenerationStart();
+    }
   }
 
   if (chatgptIsGenerating && !currentState.isGenerating) {
-    logIfDev('log', `✅ Generation finished! Triggering alert. (Method: ${currentState.method})`);
-    // Stop stopwatch BEFORE dinging
-    markGenerationEnd();
-    playAlert();
+    if (pendingDingTimeout) clearTimeout(pendingDingTimeout);
+    pendingDingTimeout = setTimeout(() => {
+      pendingDingTimeout = null;
+      logIfDev('log', `✅ Generation finished! Triggering alert. (Method: ${currentState.method})`);
+      markGenerationEnd();
+      playAlert();
+    }, IDLE_TRANSITION_DEBOUNCE_MS);
   }
-  
+
   chatgptIsGenerating = currentState.isGenerating;
 }
 
@@ -507,7 +528,7 @@ async function playAlert() {
   if (!canPlayAlertSound) {
     return;
   }
-  
+
   canPlayAlertSound = false;
 
   const soundPlayed = await playSound();
@@ -645,19 +666,25 @@ function injectComposerMuteToggle() {
 
   const dictateButton = document.querySelector(currentMuteToggleSelectors.dictateButton);
   if (!dictateButton) {
-    logIfDev('warn', 'Dictate button not found.');
+    // Composer may not be rendered yet — mutation observer will retry. Stay quiet;
+    // the 12s watchdog will surface a real problem if the button never shows up.
     return;
   }
 
-  const dictateSpan = dictateButton.closest('span.inline-flex');
-  if (!dictateSpan) {
-    logIfDev('warn', 'Span wrapping dictate button not found.');
-    return;
-  }
-
-  const flexWrapper = dictateSpan.closest(currentMuteToggleSelectors.flexWrapper);
+  const flexWrapper = dictateButton.closest(currentMuteToggleSelectors.flexWrapper);
   if (!flexWrapper) {
-    logIfDev('warn', 'Could not find flex wrapper to insert mute button.');
+    return;
+  }
+
+  // The dictate button may be a direct child of the flex wrapper (current DOM)
+  // or wrapped in a span/div (older DOM). Walk up to the highest ancestor that
+  // is still a direct child of the flex wrapper — that's where we insert before.
+  let anchor = dictateButton;
+  while (anchor.parentElement && anchor.parentElement !== flexWrapper) {
+    anchor = anchor.parentElement;
+  }
+  if (anchor.parentElement !== flexWrapper) {
+    logIfDev('warn', 'Dictate button is not inside the flex wrapper.');
     return;
   }
 
@@ -665,7 +692,7 @@ function injectComposerMuteToggle() {
 
   const button = document.createElement('button');
   button.id = 'chat-dinger-mute-btn';
-  button.className = "flex items-center justify-center rounded-full h-8 w-8 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800";
+  button.className = "composer-btn h-9 min-h-9 w-9 min-w-9 flex items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800";
   button.setAttribute('aria-label', 'Mute alerts');
   button.setAttribute('title', 'Mute alerts');
   button.style.color = 'currentColor';
@@ -682,8 +709,7 @@ function injectComposerMuteToggle() {
 
   button.addEventListener('click', handleMuteToggleClick);
 
-  // Insert before the span containing the Dictate button
-  flexWrapper.insertBefore(button, dictateSpan);
+  flexWrapper.insertBefore(button, anchor);
 
   composerMuteToggle = button;
 }
@@ -730,15 +756,26 @@ function cleanupChatGPTObservers() {
 }
 
 function handleChatGPTButtonRemoved() {
-  logIfDev('log', `Button removed, was generating: ${chatgptIsGenerating}`);
-  if (chatgptIsGenerating) {
-    markGenerationEnd();
-    playAlert();
-    }
+  const wasGenerating = chatgptIsGenerating;
+  logIfDev('log', `Button removed, was generating: ${wasGenerating}`);
+
   cleanupChatGPTObservers();
   chatgptButtonInstance = null;
   chatgptIsGenerating = false;
-  chatgptFirstGenerationCheck = true;
+
+  // If we were generating when the button vanished, schedule a debounced ding
+  // instead of firing immediately. ChatGPT swaps the button out and back in
+  // during image generation; the replacement's initial state will cancel this
+  // pending ding if it's still in stop-state.
+  if (wasGenerating) {
+    if (pendingDingTimeout) clearTimeout(pendingDingTimeout);
+    pendingDingTimeout = setTimeout(() => {
+      pendingDingTimeout = null;
+      markGenerationEnd();
+      playAlert();
+    }, REMOVAL_DEBOUNCE_MS);
+  }
+
   observeForChatGPTButton();
 }
 
@@ -752,14 +789,19 @@ function startMonitoringChatGPTButton(button) {
   cleanupChatGPTObservers();
   chatgptButtonInstance = button;
   addChatGPTClickListener(button);
-  chatgptFirstGenerationCheck = true;
-  
-  const initialState = getChatGPTButtonState(chatgptButtonInstance);
 
+  const initialState = getChatGPTButtonState(chatgptButtonInstance);
   chatgptIsGenerating = initialState.isGenerating;
+
   if (chatgptIsGenerating) {
-    markGenerationStart();
-    chatgptFirstGenerationCheck = false;
+    if (pendingDingTimeout) {
+      // Replacement button is still in stop-state — the previous button's
+      // disappearance was a swap, not real completion. Cancel the ding.
+      clearTimeout(pendingDingTimeout);
+      pendingDingTimeout = null;
+    } else {
+      markGenerationStart();
+    }
   }
   
   chatgptAttributeChangeObserver = new MutationObserver(() => {
@@ -847,7 +889,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.chatAlertSettings) {
+  if (namespace !== 'local') return;
+
+  if (changes.chatAlertSettings) {
     const newSettings = changes.chatAlertSettings.newValue;
     logIfDev('log', 'Storage change detected, updating local settings and UI.');
     settings = { ...settings, ...newSettings };
@@ -857,7 +901,55 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       updateComposerMuteButton(muteButton);
     }
   }
+
+  if (changes.customSelectors) {
+    const newCustom = changes.customSelectors.newValue || {};
+    logIfDev('log', 'Custom selectors changed, re-applying.');
+
+    if (Array.isArray(newCustom.mainButtonSelectors) && newCustom.mainButtonSelectors.length > 0) {
+      currentChatGptSelectors = [...newCustom.mainButtonSelectors, ...CHATGPT_BUTTON_SELECTORS];
+    } else {
+      currentChatGptSelectors = [...CHATGPT_BUTTON_SELECTORS];
+    }
+
+    currentMuteToggleSelectors = newCustom.muteToggleSelectors
+      ? { ...DEFAULT_MUTE_TOGGLE_SELECTORS, ...newCustom.muteToggleSelectors }
+      : { ...DEFAULT_MUTE_TOGGLE_SELECTORS };
+
+    injectComposerMuteToggle();
+    if (!chatgptButtonInstance || !document.contains(chatgptButtonInstance)) {
+      observeForChatGPTButton();
+    }
+  }
 });
+
+// Self-heal: if either the main send/stop button or the mute injection point
+// can't be found a few seconds after init, ask the background to refetch the
+// remote selectors. Bounded to one request per page load so we can't loop.
+let selectorRefreshRequested = false;
+async function requestSelectorRefreshIfStale() {
+  if (selectorRefreshRequested) return;
+  if (!chrome.runtime?.id) return;
+
+  // Only flag "stale" on pages that actually have a composer. Settings,
+  // profile, etc. don't have one and shouldn't trigger refresh requests.
+  const hasComposer = !!document.querySelector(
+    '[data-composer-surface], textarea[name="prompt-textarea"], #prompt-textarea'
+  );
+  if (!hasComposer) return;
+
+  const muteOk = !!document.getElementById('chat-dinger-mute-btn');
+  const mainOk = chatgptButtonInstance && document.contains(chatgptButtonInstance);
+  if (muteOk && mainOk) return;
+
+  selectorRefreshRequested = true;
+  logIfDev('warn', `Selectors stale (muteOk=${muteOk}, mainOk=${mainOk}). Requesting refresh.`);
+  try {
+    await chrome.runtime.sendMessage({ action: 'refreshSelectors' });
+  } catch (e) {
+    logIfDev('warn', 'refreshSelectors message failed:', e?.message);
+  }
+}
 
 ['click', 'keydown', 'touchstart', 'mousedown'].forEach(eventType => {
   document.addEventListener(eventType, trackUserInteraction, { passive: true, capture: true });
@@ -892,6 +984,7 @@ async function init() {
     observeForChatGPTButton();
     initComposerMuteToggle(); // Handles the mute button entirely
     startChatGPTMaintenance();
+    setTimeout(requestSelectorRefreshIfStale, 12000);
     // Optional: initSmartObserver(); // if you want dual-path detection
   }
 }
