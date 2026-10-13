@@ -203,11 +203,14 @@ function iconLinks() {
 }
 
 function applyUnreadMark() {
-  const node = titleTextNode();
+  const links = iconLinks();
+  // The yellow icon is the mark. The title prefix is only the fallback for a
+  // page with no icon link, so a tab never shows two dots.
+  const node = links.length ? null : titleTextNode();
   if (node && !node.nodeValue.startsWith(UNREAD_MARK)) node.nodeValue = UNREAD_MARK + node.nodeValue;
   // Swap only the href and type attributes of the existing icon links, and
   // keep the originals so the clear can put them back.
-  for (const link of iconLinks()) {
+  for (const link of links) {
     if (link.getAttribute('href') === UNREAD_ICON) continue;
     if (!iconOriginals.has(link)) iconOriginals.set(link, { href: link.getAttribute('href'), type: link.getAttribute('type') });
     link.setAttribute('href', UNREAD_ICON);

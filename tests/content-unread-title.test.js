@@ -200,6 +200,8 @@ test('a hidden tab swaps the favicon for a yellow dot and the clear restores it'
   assert.ok(link.getAttribute('href').startsWith(ICON_PREFIX));
   assert.equal(link.getAttribute('type'), 'image/png');
   assert.equal(h.icon(), link);
+  // One dot only: the title keeps its text while the icon carries the mark.
+  assert.equal(h.textNode.nodeValue, 'ChatGPT');
   h.show();
   h.document.dispatchEvent(new h.window.Event('visibilitychange'));
   assert.equal(link.getAttribute('href'), 'https://chatgpt.com/favicon.ico');
