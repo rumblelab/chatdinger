@@ -1,316 +1,105 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chat Dinger</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    /* ===== Base / Theme ===== */
-    * { box-sizing: border-box; }
-    html, body { margin:0; padding:0; }
-    body {
-      width: 340px;
-      min-height: 480px;
-      background:#0b0c10;
-      color:#e7e9ea;
-      font: 12px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      overflow: hidden;
-    }
-    a { color:#8ab4ff; text-decoration:none; }
-    .hidden { display:none !important; }
-
-    /* ===== Layout ===== */
-    .wrap { padding: 12px; height: 100vh; display:flex; flex-direction:column; }
-    .content { flex:1 1 auto; overflow:auto; }
-    .footer { flex:0 0 auto; padding-top:8px; display:flex; gap:10px; align-items:center; justify-content:space-between; color:#9aa4ad; }
-
-    /* ===== Tabs ===== */
-    .tabs { display:flex; gap:8px; margin-bottom:10px; }
-    .tabbtn {
-      flex:0 0 auto; padding:6px 10px; border-radius: 8px;
-      background:#1b1f23; cursor:pointer; user-select:none; border:1px solid #2b3036;
-      color:#e7e9ea;
-    }
-    .tabbtn[disabled] {
-      background:#2b3036; font-weight:600; cursor:default; opacity:1;
-    }
-
-    /* ===== Cards / Sections ===== */
-    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
-    .grid.two { grid-template-columns: repeat(2, 1fr); }
-    .card {
-      background:#15181c; border:1px solid #23272e; border-radius:12px; padding:10px;
-    }
-    .card.hero { padding:12px; }
-    .section-title { font-weight:700; margin:12px 0 6px; font-size:12px; color:#cbd5e1; }
-
-    .label { color:#9aa4ad; font-size:11px; }
-    .value { font-size:20px; font-weight:700; margin-top:4px; }
-    .card.hero .value { font-size:24px; }
-    .subvalue { color:#9aa4ad; font-size:10px; margin-top:4px; line-height:1.3; }
-    .identity { color:#a2abb4; font-style:italic; font-size:11px; margin-top:6px; }
-
-    /* Next achievement preview */
-    .next-achv {
-      background:#121519; border:1px solid #1f232b; border-radius:10px; padding:8px 10px;
-    }
-    .next-achv .row-space { margin-bottom:6px; }
-    .next-achv .title { font-weight:600; font-size:12px; }
-    .next-achv .meta { color:#9aa4ad; font-size:11px; }
-    .mini-progress {
-      height:6px; border-radius:999px; background:#101317; border:1px solid #1f232b; overflow:hidden;
-    }
-    .mini-progress > div { height:100%; background:#3b82f6; width:0%; transition: width .2s ease; }
-
-    /* Share button */
-    .share-btn {
-      padding:4px 8px; border:1px solid #2b3036; border-radius:6px;
-      background:#1b1f23; color:#cbd5e1; cursor:pointer; font-size:11px;
-    }
-    .share-btn:hover { background:#23272e; }
-    .share-btn.copied { background:#22c55e; color:#fff; border-color:#22c55e; }
-
-    .row { display:flex; align-items:center; gap:8px; }
-    .row-space { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-    .muted { color:#9aa4ad; }
-
-    .achv {
-      display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px;
-      background:#121519; border:1px solid #1f232b;
-    }
-    .achv .badge {
-      width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:#2b3036; font-size:12px;
-    }
-    .achv .title { font-weight:600; }
-    .achv .meta { color:#a2abb4; font-size:11px; }
-
-    /* ===== Progress ===== */
-    .progress {
-      height:10px; border-radius:999px; background:#101317; border:1px solid #1f232b; overflow:hidden;
-    }
-    .progress > div { height:100%; background:#22c55e; width:0%; transition: width .2s ease; }
-
-    /* ===== Controls ===== */
-    .field { margin-bottom:10px; }
-    .toggle { display:flex; align-items:center; gap:8px; }
-    .checkbox {
-      width:18px; height:18px; border-radius:6px; border:1px solid #2b3036; background:#15181c;
-      display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
-    }
-    .checkbox.checked { background:#3b82f6; border-color:#3b82f6; }
-    .checkbox.checked::after { content:"✓"; font-size:12px; }
-
-    /* Dropdown */
-    .dropdown {
-      width:100%;
-      background:#15181c; color:#e7e9ea; border:1px solid #2b3036; border-radius:8px; padding:6px 8px;
-      font: inherit;
-    }
-
-    /* Slider (custom thumb visual mirrors your old structure) */
-    .slider-wrap { display:flex; align-items:center; gap:8px; }
-    .slider {
-      position: relative; height: 24px; flex: 1 1 auto;
-      background:#15181c; border:1px solid #2b3036; border-radius:999px;
-    }
-    .slider-track {
-      position:absolute; left:8px; right:8px; top:11px; height:2px; background:#2b3036; border-radius:999px;
-    }
-    .slider-thumb {
-        position:absolute; top:4px;
-        width:16px; height:16px; border-radius:50%;
-        background:#e7e9ea; border:0; pointer-events:none;
-        transform: translateX(-50%); /* keep this */
-        /* left will be set in JS as a % */
-    }
-    input[type="range"] {
-      position:absolute; inset:0; opacity:0; cursor:pointer;
-    }
-    .volume-display { color:#cbd5e1; }
-
-    /* Tooltip (kept minimal) */
-    .tooltip { position: relative; display: inline-flex; align-items:center; }
-    .info-icon {
-      width:16px; height:16px; display:grid; place-items:center;
-      border-radius:4px; border:1px solid #2b3036; background:#1b1f23; color:#9aa4ad; font-size:11px;
-      cursor:default;
-    }
-    .tooltiptext {
-      position:absolute; left:50%; transform:translate(-80%,130%); bottom:150%;
-      background:#15181c; color:#e7e9ea; border:1px solid #2b3036; border-radius:8px; padding:8px; width:240px;
-      opacity:0; pointer-events:none; transition: opacity .15s ease; z-index:10;
-    }
-    .tooltip:hover .tooltiptext { opacity:1; }
-
-    /* Status / links */
-    .status-panel {
-      flex:1; background:#121519; border:1px solid #1f232b; border-radius:8px; padding:6px 8px; color:#cbd5e1;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .smaller{
-      font-size: 10px;
-    }
-    .links { display:flex; gap:10px; }
-  </style>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="wrap">
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tabbtn" id="tab-stats-btn">📊 metrics</button>
-      <button class="tabbtn" id="tab-settings-btn">⚙️ settings</button>
+    <header class="masthead">
+      <span class="wordmark">chat ding(er)</span>
+      <button id="save-snapshot" class="icon-button" type="button" aria-label="Save a metrics snapshot" title="Save a snapshot">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5.5 9.5 3h5L16 5.5h3.5A1.5 1.5 0 0 1 21 7v12a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19V7a1.5 1.5 0 0 1 1.5-1.5Z"/><circle cx="12" cy="12.5" r="4"/></svg>
+      </button>
+    </header>
+    <div class="tabs" role="tablist" aria-label="Popup pages">
+      <button class="tabbtn" id="tab-stats-btn" type="button" role="tab" aria-controls="tab-stats" aria-selected="true">metrics</button>
+      <button class="tabbtn" id="tab-settings-btn" type="button" role="tab" aria-controls="tab-settings" aria-selected="false">settings</button>
     </div>
+
+    <section id="health" class="health status-panel" data-state="checking" aria-live="polite" aria-atomic="true">
+      <span class="health-dot" aria-hidden="true"></span>
+      <div class="health-copy"><div id="health-title" class="health-title">Connecting to ChatGPT</div><div id="health-detail" class="health-detail">Chat Dinger is checking the connection.</div></div>
+      <div class="health-actions">
+        <button id="health-action" class="health-action hidden" type="button">Open ChatGPT</button>
+        <button id="health-report" class="health-action health-report hidden" type="button">Report problem</button>
+      </div>
+    </section>
 
     <div class="content">
-      <!-- ===== STATS (HUD) ===== -->
-      <div id="tab-stats">
-        <!-- Hero stats: lifetime + cook time -->
-        <div class="grid two">
-          <div class="card hero">
-            <div class="label">Lifetime Dings</div>
-            <div id="hud-lifetime" class="value">0</div>
+      <section id="tab-stats" role="tabpanel" aria-labelledby="tab-stats-btn">
+        <div class="wait-metric">
+          <div class="metric-heading"><span class="eyebrow">Total wait time</span><span class="period">All time</span></div>
+          <div id="hud-wait-time" class="time-value" aria-label="0 seconds"><span>0<span class="time-unit">s</span></span></div>
+        </div>
+        <div class="dings-row"><span class="eyebrow">Total dings</span><span id="hud-lifetime" class="dings-value">0</span></div>
+        <div class="milestone-heading"><h2 class="eyebrow">Milestones</h2><button id="view-milestones" class="text-button" type="button" aria-expanded="false" aria-controls="milestone-list">View all</button></div>
+        <div id="featured-milestone" class="milestone-card" data-empty="true">
+          <span id="milestone-stamp" class="milestone-stamp" aria-hidden="true">01</span>
+          <div><h3 id="milestone-title">Your first ding.</h3><p id="milestone-detail">One completed response starts your collection.</p></div>
+        </div>
+        <div id="milestone-list" class="hidden">
+          <p id="milestone-count" class="milestone-count">0 of 10 reached</p>
+          <ul id="milestone-items" class="milestone-list"></ul>
+        </div>
+        <p id="metrics-error" class="metrics-error hidden" role="status"></p>
+      </section>
+
+      <section id="tab-settings" class="hidden" role="tabpanel" aria-labelledby="tab-settings-btn">
+        <div class="settings-group">
+          <h2 class="eyebrow">Alerts</h2>
+          <div class="setting-row"><label for="enabled-toggle">Enable Chat Dinger</label><input class="checkbox" id="enabled-toggle" type="checkbox"></div>
+          <div class="setting-row">
+            <label for="active-tab-toggle">Sound in the active tab<span class="setting-note">Also ding while you view ChatGPT.</span></label>
+            <input class="checkbox" id="active-tab-toggle" type="checkbox">
           </div>
-          <div class="card hero">
-            <div class="label">Total Cook Time</div>
-            <div id="hud-cook-time" class="value">0</div>
-            <div id="hud-cook-sub" class="subvalue">longest — · avg —</div>
-          </div>
+          <div class="setting-row"><label for="system-notification-toggle">Desktop notifications<span class="setting-note">When you use another tab or window.</span></label><input class="checkbox" id="system-notification-toggle" type="checkbox"></div>
+          <div class="setting-row"><label for="unread-tab-toggle">Mark the tab title until I open the response<span class="setting-note">When a response finishes in another tab.</span></label><input class="checkbox" id="unread-tab-toggle" type="checkbox"></div>
         </div>
 
-        <!-- Secondary stats -->
-        <div class="grid" style="margin-top:8px;">
-          <div class="card">
-            <div class="label">Today</div>
-            <div id="hud-today" class="value">0</div>
-          </div>
-          <div class="card">
-            <div class="label">Streak</div>
-            <div id="hud-streak" class="value">0</div>
-          </div>
-          <div class="card">
-            <div class="label">Best Streak</div>
-            <div id="hud-best-streak" class="value">0</div>
-          </div>
-        </div>
-
-        <!-- Hidden but kept for compatibility -->
-        <div id="hud-longest-cook" class="hidden">0</div>
-
-        <div class="section-title">
-          <div class="row-space">
-            <span>Level</span>
-            <button id="share-stats" class="share-btn" title="Copy stats to clipboard">📋 share</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="row-space">
-            <div class="row" style="gap:6px;">
-              <strong>#<span id="hud-level">1</span><span id="hud-title">: Ding-Bat</span></strong>
-              <span class="muted">(<span id="hud-xp">0</span>/<span id="hud-xp-needed">25</span> XP)</span>
-            </div>
-
-          </div>
-          <p id="hud-description" class="smaller">Do you even ding, bro? </p>
-
-          <div class="progress" style="margin-top:8px;">
-            <div id="hud-xp-bar" style="width:0%"></div>
-          </div>
-
-          <div id="hud-identity" class="identity hidden"></div>
-        </div>
-
-        <div class="section-title">Next Up</div>
-        <div id="hud-next-achievement" class="next-achv">
-          <div class="row-space">
-            <span class="title" id="hud-next-title">—</span>
-            <span class="meta" id="hud-next-meta"></span>
-          </div>
-          <div class="mini-progress"><div id="hud-next-bar" style="width:0%"></div></div>
-        </div>
-
-        <div style="display:none" class="section-title">Milestones</div>
-        <div style="display:none" id="hud-milestones" class="grid two">
-          <!-- JS fills -->
-        </div>
-
-        <div class="section-title">Recent Achievements</div>
-        <div id="hud-achievements" style="display:grid; gap:8px;">
-          <!-- JS fills with .achv rows -->
-        </div>
-      </div>
-
-      <!-- ===== SETTINGS ===== -->
-      <div id="tab-settings" class="hidden">
-        <div class="card">
-          <div class="field toggle">
-            <div class="checkbox checked" id="enabled-toggle" role="checkbox" aria-checked="true" tabindex="0"></div>
-            <label class="label" for="enabled-toggle" style="color:#e7e9ea;">Enable notifications</label>
-          </div>
-
-          <div class="field toggle">
-            <div class="checkbox" id="active-tab-toggle" role="checkbox" aria-checked="false" tabindex="0"></div>
-            <label class="label" for="active-tab-toggle" style="color:#e7e9ea;">Notify when ChatGPT is active tab</label>
-            <div class="tooltip">
-              <span class="info-icon">i</span>
-              <span class="tooltiptext">
-                When enabled, you will hear a sound even if the ChatGPT tab is currently active.
-                Disable this to only be notified when ChatGPT is in a background tab.
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="section-title" style="margin-top:0;">Volume</div>
+        <div class="settings-group">
+          <h2 class="eyebrow"><label for="sound-select">Sound</label></h2>
+          <div class="sound-row"><select class="dropdown" id="sound-select"></select><button id="test-sound" class="test-button" type="button" aria-label="Test sound">Test</button></div>
+          <div class="volume-heading"><output id="volume-value" class="volume-display" for="volume-slider">Volume: 70%</output></div>
           <div class="slider-wrap">
             <span class="muted">Low</span>
-            <div class="slider" id="volume-slider-container">
-              <div class="slider-track"></div>
-              <div class="slider-thumb" id="volume-thumb" style="left:70%;"></div>
-              <input type="range" id="volume-slider" min="0" max="100" value="70" />
-            </div>
+            <div class="slider"><div class="slider-track"></div><div class="slider-thumb" id="volume-thumb" style="left:70%"></div><input id="volume-slider" type="range" min="0" max="100" value="70" aria-label="Notification volume"></div>
             <span class="muted">High</span>
           </div>
-          <div class="row" style="justify-content:center; margin-top:8px;">
-            <div class="volume-display" id="volume-value">Volume: 70%</div>
+        </div>
+
+        <div class="settings-group reset-group">
+          <div class="setting-row"><div class="setting-copy">Settings &amp; stats<span class="setting-note">Stored on this device.</span></div><button id="delete-stats" class="danger-button" type="button">Reset</button></div>
+          <div id="delete-confirm" class="confirm-row hidden" role="group" aria-label="Confirm reset">
+            <span class="confirm-copy">Reset all settings and stats?</span>
+            <button id="cancel-delete" class="secondary-button" type="button">Cancel</button>
+            <button id="confirm-delete" class="danger-button" type="button">Yes, reset</button>
           </div>
         </div>
 
-        <div class="card">
-          <div class="section-title" style="margin-top:0;">Notification Sound</div>
-          <div class="field">
-            <select class="dropdown" id="sound-select">
-              <option value="cryptic.wav">Bloop</option>
-              <option value="ding.mp3">Ding</option>
-              <option value="claude.mp3">Claude</option>
-              <option value="nylon.mp3">Nylon</option>
-              <option value="pew.wav">Pew</option>
-              <option value="coin.mp3">Coin</option>
-              <option value="alert.mp3">Alert</option>
-              <option value="boop.mp3">Boop</option>
-              <option value="twelve.wav">Meow</option>
-            </select>
-          </div>
-          <div class="row" style="gap:8px;">
-            <button id="test-sound" style="padding:8px 10px; border:0; border-radius:8px; background:#3b82f6; color:#fff; cursor:pointer;">Test</button>
-            <button id="dev-reset-count" style="padding:8px 10px; border:1px solid #2b3036; border-radius:8px; background:#1b1f23; color:#e7e9ea; cursor:pointer;">Reset Count</button>
-            <button id="dev-trigger-ding" style="padding:8px 10px; border:1px solid #2b3036; border-radius:8px; background:#1b1f23; color:#e7e9ea; cursor:pointer;">Trigger Ding</button>
-          </div>
+        <div class="settings-group diagnostics-group">
+          <h2 class="eyebrow">Diagnostics</h2>
+          <div class="setting-row"><label for="diagnostics-toggle">Send error reports</label><input class="checkbox" id="diagnostics-toggle" type="checkbox"></div>
+          <p class="setting-note">Optional. Sends error codes and versions to help find failures. If you uninstall, the latest code, version, and time also reach the uninstall page. No chat text is sent.</p>
+          <button id="copy-diagnostics" class="secondary-button" type="button">Copy diagnostics</button>
+          <p class="setting-note">Copies recent detection and sound events. No chat text or chat URLs.</p>
+          <textarea id="diagnostic-output" class="hidden" readonly rows="6" aria-label="Diagnostic report"></textarea>
         </div>
 
-        <div id="status-message" class="status-panel hidden" style="margin-top:8px;">Ready</div>
-      </div>
+
+      </section>
     </div>
 
+    <div id="status-message" class="status status-panel hidden" role="status" aria-live="polite" aria-atomic="true"></div>
     <div class="footer">
-      <div id="status-panel" class="status-panel hidden">Ready</div>
-      <div class="links">
-        <a id="ask" target="_blank" href="https://chatdinger.com/review">leave a review</a>
-        <a id="bug" target="_blank" href="mailto:moochie@discofish.lol?subject=Chat Dinger Bug Report">report an issue</a>
-      </div>
+      <div class="links"><a target="_blank" rel="noopener noreferrer" id="review-link" href="https://chromewebstore.google.com/detail/chat-dinger-%E2%80%93-notificatio/kkpdpkhnioiapldpimpdlleonejkkddb/reviews">leave a review</a><a target="_blank" rel="noopener noreferrer" href="mailto:moochie@discofish.lol?subject=Chat%20Dinger%20Bug%20Report">report an issue</a></div>
     </div>
   </div>
-
+  <script src="shared.js"></script>
+  <script src="metrics.js"></script>
   <script src="popup.js"></script>
+  <script src="popup-review.js"></script>
 </body>
 </html>

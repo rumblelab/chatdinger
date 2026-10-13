@@ -1,2 +1,6 @@
 sfx/
 about.txt
+.DS_Store
+dist/
+*.zip
+node_modules/

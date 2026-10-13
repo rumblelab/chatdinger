@@ -1,39 +1,91 @@
-async function logIfDev(level, ...args) {
-  if (!chrome.runtime?.id||!chrome.storage?.local) {
-    // The context has been invalidated, so we can't use any chrome.* APIs.
-    // Silently return to prevent the error.
-    return;
-  }
-  try {
-    const { isDevMode } = await chrome.storage.local.get(['isDevMode']);
-    if (isDevMode) {
-      switch (level) {
-        case 'log':
-          console.log('Chat Dinger:', ...args);
-          break;
-        case 'warn':
-          console.warn('Chat Dinger:', ...args);
-          break;
-        case 'error':
-          console.error('Chat Dinger:', ...args);
-          break;
-      }
-    }
-  } catch (e) {
-    console.error('Chat Dinger: Failed to check dev mode for logging:', e.message);
-  }
-}
+'use strict';
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === 'playOffscreenAudio') {
-    logIfDev('log', `Received play request for ${message.soundFile}`);
-    playAudio(message.soundFile, message.volume);
-  }
-});
+const { SOUND_FILES, clampVolume } = ChatDingerShared;
+const soundValues = SOUND_FILES.map(sound => sound.value);
+const AUDIO_START_TIMEOUT_MS = 10000;
+let currentPlayback = null;
 
-function playAudio(soundFile, volume) {
-  logIfDev('log', `Playing ${soundFile} at volume ${volume}`);
+async function playAudio(soundFile, volume) {
+  if (!soundValues.includes(soundFile)) {
+    throw new Error('The sound file is not permitted.');
+  }
+
   const audio = new Audio(chrome.runtime.getURL(`sounds/${soundFile}`));
-  audio.volume = volume;
-  audio.play().catch(e => console.error(`Offscreen Audio Error: ${e.message}`));
+  audio.volume = clampVolume(volume);
+  audio.preload = 'auto';
+  if ('preservesPitch' in audio) {
+    audio.preservesPitch = false;
+  }
+  if (currentPlayback) {
+    currentPlayback.replace();
+  }
+
+  return new Promise((resolve, reject) => {
+    let startSettled = false;
+    const playback = { replace };
+    const cleanup = () => {
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+      if (currentPlayback === playback) currentPlayback = null;
+    };
+    const settleStart = (error, result) => {
+      if (startSettled) return;
+      startSettled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const onEnded = () => {
+      settleStart(null, { success: true, audioStarted: true });
+      cleanup();
+    };
+    const onError = () => {
+      settleStart(new Error('The audio player could not read the sound file.'));
+      cleanup();
+    };
+    function replace() {
+      // A new alert can replace a sound whose play request is still pending.
+      settleStart(null, { success: true, skipped: true, skipReason: 'superseded', audioStarted: false });
+      cleanup();
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    const timeout = setTimeout(() => {
+      settleStart(new Error('The sound did not start within ten seconds.'));
+      cleanup();
+      audio.pause();
+    }, AUDIO_START_TIMEOUT_MS);
+    currentPlayback = playback;
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+    try {
+      Promise.resolve(audio.play()).then(() => {
+        settleStart(null, { success: true, audioStarted: true });
+      }, error => {
+        settleStart(error);
+        cleanup();
+      });
+    } catch (error) {
+      settleStart(error);
+      cleanup();
+    }
+  });
 }
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.target !== 'offscreen' || message.action !== 'playOffscreenAudio') {
+    return false;
+  }
+  if (sender.id !== chrome.runtime.id || sender.tab) {
+    sendResponse({ success: false, error: 'This sender cannot use the audio player.' });
+    return false;
+  }
+
+  playAudio(message.soundFile, message.volume)
+    .then(sendResponse)
+    .catch(error => {
+      console.error('Chat Dinger: Offscreen audio failed.', error);
+      sendResponse({ success: false, code: 'audio_failed', audioStarted: false, error: error.message });
+    });
+  return true;
+});

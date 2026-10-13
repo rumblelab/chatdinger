@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chat-dinger-health",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-25",
+  "workers_dev": false,
+  "routes": [{ "pattern": "chatdinger.com/api/dinger-health", "zone_name": "chatdinger.com" }],
+  "vars": {
+    "ALERT_TO": "moochie@discofish.lol",
+    "ALERT_FROM": "alerts@chatdinger.com"
+  },
+  "send_email": [{ "name": "EMAIL", "allowed_destination_addresses": ["moochie@discofish.lol"] }],
+  "durable_objects": { "bindings": [{ "name": "ALERTS", "class_name": "HealthAlerts" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HealthAlerts"] }],
+  "ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "592501", "simple": { "limit": 30, "period": 60 } }]
+}

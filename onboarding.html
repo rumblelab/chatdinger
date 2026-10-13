@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Set up Chat Dinger</title>
+  <link rel="stylesheet" href="onboarding.css">
+  <script src="shared.js" defer></script>
+  <script src="onboarding.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><span class="wordmark" aria-label="Chat Dinger">chat ding(er)</span><span class="eyebrow">Sound setup</span></header>
+    <h1>Choose your sound.</h1>
+    <p class="intro">A small sound when your response is ready.</p>
+    <section class="console" aria-label="Sound setup">
+      <fieldset id="controls" disabled>
+        <legend class="sr-only">Sound settings</legend>
+        <label for="sound">Sound</label>
+        <div class="sound-row"><select id="sound"></select><button id="test-sound" class="test-button" type="button">▶ Test sound</button></div>
+        <div class="volume-heading"><label for="volume">Volume</label><output id="volume-value" for="volume">70%</output></div>
+        <input id="volume" type="range" min="0" max="100" step="1" value="70">
+        <label class="preference"><input id="active-sound" type="checkbox" aria-describedby="active-sound-help"><span>Play sound while I use ChatGPT</span></label>
+        <p id="active-sound-help" class="hint">When off, sound plays only when you use another tab or window.</p>
+      </fieldset>
+      <p id="sound-status" class="status" role="status" aria-live="polite">Loading…</p>
+      <div id="hearing-check" class="hearing-check" role="group" aria-label="Did you hear the sound?" hidden>
+        <button id="heard-yes" type="button">Yes</button><button id="heard-no" type="button">No</button>
+      </div>
+      <details id="response-help" hidden><summary>No sound after a response?</summary><p>Open Chat Dinger in your ChatGPT tab and select Reconnect. Then start a new response.</p></details>
+      <div id="connection-status" class="connection-status" role="status" hidden><strong id="connection-title"></strong><p id="connection-detail"></p></div>
+      <button id="open-chatgpt" class="finish" type="button" disabled>Finish setup →</button>
+      <p class="finish-note">Opens ChatGPT and closes this page.</p>
+    </section>
+    <footer>Change these later in Chat Dinger → Settings.</footer>
+  </main>
+</body>
+</html>

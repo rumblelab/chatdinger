@@ -1,20 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "Chat Dinger - ChatGPT Notification Sounds and Stats",
+  "minimum_chrome_version": "116",
+  "name": "Chat Dinger \u2013 Notification Sound for ChatGPT",
   "short_name": "Chat Dinger",
-  "version": "2.0.18",
-  "description": "Never miss when ChatGPT finishes generating! Chat Dinger plays a sound to notify you, so you can multitask effectively.",
+  "version": "2.0.29",
+  "description": "Get a sound alert when ChatGPT finishes responding. Switch tabs and Chat Dinger will tell you when your answer is ready.",
+  "homepage_url": "https://chatdinger.com",
   "permissions": [
-    "storage",    
+    "storage",
     "scripting",
-    "activeTab",
     "notifications",
     "offscreen",
     "alarms"
-    ],
+  ],
   "host_permissions": [
-    "*://chat.openai.com/*",
-    "*://chatgpt.com/*"
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -26,44 +27,22 @@
   "content_scripts": [
     {
       "matches": [
-        "*://chatgpt.com/*",
-        "*://chat.openai.com/*"
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "shared.js",
+        "detector.js",
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "sounds/alert.mp3",
-        "sounds/boop.mp3",
-        "sounds/claude.mp3",
-        "sounds/ding.mp3",
-        "sounds/cryptic.wav",
-        "sounds/twelve.wav",
-        "sounds/glitch.wav",
-        "sounds/coin.mp3",
-        "sounds/nylon.mp3",
-        "sounds/pew.wav",
-        "images/gentlemansagreementfinal.jpeg",
-        "images/icon16.png",
-        "images/icon32.png",
-        "images/icon48.png",
-        "images/icon128.png"
-      ],
-      "matches": [
-        "*://chatgpt.com/*",
-        "*://chat.openai.com/*",
-        "https://chatdinger.com/*"
-      ]
-    }
-  ],
   "icons": {
-      "16": "images/icon16.png",
-      "32": "images/icon32.png",
-      "48": "images/icon48.png",
-      "128": "images/icon128.png"
+    "16": "images/icon16.png",
+    "32": "images/icon32.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
   }
 }

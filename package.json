@@ -1,0 +1,19 @@
+{
+  "name": "chat-dinger",
+  "version": "2.0.29",
+  "private": true,
+  "description": "Get a sound alert when ChatGPT finishes a response or image.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "validate": "node scripts/validate-release.mjs",
+    "check": "node --check shared.js && node --check metrics.js && node --check detector.js && node --check background.js && node --check content.js && node --check offscreen.js && node --check popup.js && node --check popup-review.js && node --check onboarding.js && npm run validate && npm test",
+    "package": "npm run check && sh scripts/package-extension.sh"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
