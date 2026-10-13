@@ -56,7 +56,8 @@ a:hover { text-decoration: underline; }
 }
 @keyframes review-rainbow { to { background-position: 250% 0; } }
 @media (prefers-reduced-motion: reduce) { #review-link.review-unread { animation: none; } }
-.health { display: grid; flex: 0 0 auto; grid-template-columns: 6px minmax(0, 1fr); align-items: start; column-gap: 8px; margin-bottom: 4px; padding: 7px 0; }
+.health { display: grid; flex: 0 0 auto; grid-template-columns: 6px minmax(0, 1fr) auto; align-items: start; column-gap: 8px; margin-bottom: 4px; padding: 7px 0; }
+.health-switch { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; cursor: pointer; }
 .health-dot { width: 6px; height: 6px; margin-top: 5px; border-radius: 50%; background: var(--yellow); }
 .health[data-state="ready"] .health-dot { background: #b5edb2; }
 .health[data-state="error"] .health-dot { background: var(--salmon); }
@@ -66,7 +67,7 @@ a:hover { text-decoration: underline; }
 .health[data-state="ready"] .health-detail { display: none; }
 .health[data-state="error"] { padding: 10px; border: 1px solid var(--salmon); border-radius: 4px; background: var(--surface); }
 .health[data-state="error"] .health-title { color: var(--text); font-weight: 700; }
-.health-actions { display: none; grid-column: 2; gap: 8px; padding-top: 8px; }
+.health-actions { display: none; grid-column: 2 / -1; gap: 8px; padding-top: 8px; }
 .health-actions:has(button:not(.hidden)) { display: flex; flex-wrap: wrap; }
 .health-action { min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--text); cursor: pointer; }
 .health-action:hover { border-color: var(--yellow); }

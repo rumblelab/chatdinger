@@ -162,3 +162,24 @@ test('Copy diagnostics identifies a disconnected content script', async t => {
   assert.equal(JSON.parse(report).content.error, 'content_not_connected');
   assert.doesNotMatch(report, /PRIVATE ERROR/);
 });
+
+test('the header alerts switch and the settings switch stay in sync and save', async t => {
+  const h = await harness(t, { success: true, monitoring: true });
+  const saved = [];
+  h.window.chrome.runtime.sendMessage = async message => {
+    if (message.action === 'settingsUpdated') saved.push(message.settings.enabled);
+    return { success: true };
+  };
+  assert.equal(h.element('quick-enabled-toggle').checked, true);
+  assert.equal(h.element('enabled-toggle').checked, true);
+  h.element('quick-enabled-toggle').checked = false;
+  h.element('quick-enabled-toggle').dispatchEvent(new h.window.Event('change', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(h.element('enabled-toggle').checked, false);
+  assert.deepEqual(saved, [false]);
+  h.element('enabled-toggle').checked = true;
+  h.element('enabled-toggle').dispatchEvent(new h.window.Event('change', { bubbles: true }));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(h.element('quick-enabled-toggle').checked, true);
+  assert.deepEqual(saved, [false, true]);
+});

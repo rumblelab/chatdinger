@@ -31,6 +31,7 @@ const elements = {
   deleteStats: document.getElementById('delete-stats'),
   diagnosticsToggle: document.getElementById('diagnostics-toggle'),
   enabledToggle: document.getElementById('enabled-toggle'),
+  quickEnabledToggle: document.getElementById('quick-enabled-toggle'),
   health: document.getElementById('health'),
   healthAction: document.getElementById('health-action'),
   healthDetail: document.getElementById('health-detail'),
@@ -107,6 +108,7 @@ function buildSoundOptions() {
 
 function updateSettingsUI() {
   elements.enabledToggle.checked = currentSettings.enabled;
+  elements.quickEnabledToggle.checked = currentSettings.enabled;
   elements.activeTabToggle.checked = currentSettings.notifyOnActiveTab;
   elements.systemNotificationToggle.checked = currentSettings.showSystemNotification;
   elements.unreadTabToggle.checked = currentSettings.markUnreadTab;
@@ -362,11 +364,16 @@ elements.healthReport.addEventListener('click', async () => {
   await chrome.tabs.create({ url: url.href });
 });
 
-elements.enabledToggle.addEventListener('change', async event => {
-  currentSettings.enabled = event.target.checked;
-  await saveSettings(currentSettings.enabled ? 'Chat Dinger is on.' : 'Chat Dinger is off.');
+// The header switch and the settings switch control the same setting.
+async function setAlertsEnabled(enabled) {
+  currentSettings.enabled = enabled;
+  elements.enabledToggle.checked = enabled;
+  elements.quickEnabledToggle.checked = enabled;
+  await saveSettings(enabled ? 'Chat Dinger is on.' : 'Chat Dinger is off.');
   await refreshHealth();
-});
+}
+elements.enabledToggle.addEventListener('change', event => setAlertsEnabled(event.target.checked));
+elements.quickEnabledToggle.addEventListener('change', event => setAlertsEnabled(event.target.checked));
 elements.diagnosticsToggle.addEventListener('change', async event => {
   try {
     await chrome.storage.local.set({ diagnosticsEnabled: event.target.checked });
