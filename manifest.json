@@ -4,7 +4,7 @@
   "name": "Chat Dinger \u2013 Notification Sound for ChatGPT",
   "short_name": "Chat Dinger",
   "version": "2.0.29",
-  "description": "Get a sound alert when ChatGPT finishes responding. Switch tabs and Chat Dinger will tell you when your answer is ready.",
+  "description": "Sound alert when ChatGPT finishes a response or image. Works in every ChatGPT language. Marks the tab until you open the answer.",
   "homepage_url": "https://chatdinger.com",
   "permissions": [
     "storage",
