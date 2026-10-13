@@ -17,11 +17,14 @@ async function harness(options = {}) {
     return elements.get(id);
   };
   let settings = { ...Shared.DEFAULT_SETTINGS, notifyOnActiveTab: false, ...options.settings };
-  const messages = [], opened = [], focused = [], removed = [];
+  const messages = [], opened = [], focused = [], removed = [], timers = [], stored = {};
   const chrome = {
     storage: { local: {
       get: async () => ({ chatAlertSettings: settings }),
-      set: async values => { settings = values.chatAlertSettings; }
+      set: async values => {
+        if (values.chatAlertSettings) settings = values.chatAlertSettings;
+        Object.assign(stored, values);
+      }
     } },
     runtime: { sendMessage: async message => {
       messages.push(message);
@@ -39,12 +42,56 @@ async function harness(options = {}) {
   };
   const context = vm.createContext({
     ChatDingerShared: Shared, chrome,
+    setTimeout: (callback, delay) => timers.push({ callback, delay }),
     document: { getElementById: element, createElement: () => ({}), addEventListener() {} }
   });
   vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return { element, messages, opened, focused, removed, settings: () => settings };
+  async function flushTimers() {
+    for (const timer of timers.splice(0)) await timer.callback();
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  return { element, messages, opened, focused, removed, timers, stored, flushTimers, settings: () => settings };
 }
+
+test('setup plays the sound once on open and keeps Test again available', async () => {
+  const h = await harness();
+  assert.equal(h.messages.length, 0);
+  assert.equal(h.timers.length, 1);
+  await h.flushTimers();
+  assert.equal(h.messages.length, 1);
+  assert.equal(h.messages[0].action, 'testSound');
+  assert.equal(h.messages[0].soundFile, 'soft-tap.wav');
+  assert.match(h.element('sound-status').textContent, /just played your sound/);
+  assert.equal(h.element('hearing-check').hidden, false);
+  assert.equal(h.element('test-sound').disabled, false);
+  assert.equal(h.element('test-sound').textContent, '▶ Test again');
+  await h.element('test-sound').listeners.click();
+  assert.equal(h.messages.length, 2);
+  assert.equal(h.element('hearing-check').hidden, false);
+});
+
+test('a failed automatic play shows the error and leaves the Test button usable', async () => {
+  const h = await harness({ playbackSuccess: false });
+  await h.flushTimers();
+  assert.equal(h.element('sound-status').dataset.error, 'true');
+  assert.equal(h.element('test-sound').disabled, false);
+  assert.equal(h.element('controls').disabled, false);
+});
+
+test('the hearing answer is stored on this device', async () => {
+  const h = await harness();
+  await h.element('test-sound').listeners.click();
+  h.element('heard-yes').listeners.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.stored.heardTestSound, true);
+  assert.equal(h.settings().selectedSound, 'soft-tap.wav');
+  await h.element('test-sound').listeners.click();
+  h.element('heard-no').listeners.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.stored.heardTestSound, false);
+  assert.match(h.element('sound-status').textContent, /Test again/);
+});
 
 test('sound test saves selection, preserves other settings, and uses the background player', async () => {
   const h = await harness();

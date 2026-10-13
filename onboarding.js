@@ -62,7 +62,9 @@ volume.addEventListener('change', selectionChanged);
 sound.addEventListener('change', selectionChanged);
 activeSound.addEventListener('change', selectionChanged);
 
-testButton.addEventListener('click', async () => {
+// The same routine serves the automatic first play and the Test button. The
+// button always stays available, so a user whose audio was off can play again.
+async function runSoundTest({ automatic = false } = {}) {
   resetSoundCheck();
   controls.disabled = true;
   testButton.disabled = true;
@@ -81,7 +83,7 @@ testButton.addEventListener('click', async () => {
       action: 'testSound', soundFile: sound.value, volume: Number(volume.value) / 100
     });
     if (!response?.success) throw new Error('Playback failed');
-    showSoundStatus('Did you hear the sound?');
+    showSoundStatus(automatic ? 'Chat Dinger just played your sound. Did you hear it?' : 'Did you hear the sound?');
     hearingCheck.hidden = false;
   } catch (_error) {
     showSoundStatus('Chat Dinger could not play the sound. Try another sound.', true);
@@ -90,17 +92,30 @@ testButton.addEventListener('click', async () => {
     testButton.disabled = false;
     testButton.textContent = '▶ Test again';
   }
-});
+}
+
+testButton.addEventListener('click', () => runSoundTest());
+
+// Keep the answer on this device. It says whether this user ever heard the sound.
+function recordHearing(heard) {
+  try {
+    Promise.resolve(chrome.storage.local.set({ heardTestSound: heard })).catch(() => {});
+  } catch (_error) {
+    // The answer is a convenience. Setup continues without it.
+  }
+}
 
 document.getElementById('heard-yes').addEventListener('click', () => {
   hearingCheck.hidden = true;
+  recordHearing(true);
   showSoundStatus('Sound confirmed. You are ready.');
   responseHelp.hidden = false;
 });
 
 document.getElementById('heard-no').addEventListener('click', () => {
   hearingCheck.hidden = true;
-  showSoundStatus('Check your computer’s volume and audio output. The sound can go to headphones or a Bluetooth device.');
+  recordHearing(false);
+  showSoundStatus('Check your computer’s volume and audio output. The sound can go to headphones or a Bluetooth device. Then press Test again.');
 });
 
 async function getChatTabs() {
@@ -202,6 +217,10 @@ async function init() {
     controls.disabled = false;
     openButton.disabled = false;
     showSoundStatus('');
+    // Play the sound once on its own. The install click was the user gesture,
+    // and the background player does not depend on this page's autoplay rules.
+    // A user who hears nothing learns it here, not after the first response.
+    setTimeout(() => { runSoundTest({ automatic: true }); }, 600);
   } catch (_error) {
     showSoundStatus('Could not load your settings. Reload this page.', true);
   }

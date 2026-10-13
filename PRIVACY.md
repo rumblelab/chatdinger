@@ -9,6 +9,7 @@ Chat Dinger detects when ChatGPT finishes a response. It then plays the sound th
 Chat Dinger stores these items in `chrome.storage.local`:
 
 - Your settings, such as the selected sound and volume.
+- Whether you said that you heard the test sound during setup.
 - Local use totals, response times, streaks, and achievement state.
 - Whether the store review popup has appeared and whether the review link was clicked.
 - A cached list of ChatGPT interface selectors.
