@@ -48,6 +48,10 @@ let completionQueue = Promise.resolve();
 let audioFailed = false;
 const soundEvents = [];
 const UNREAD_MARK = '● ';
+// A 32 px yellow dot with a dark ring. The favicon is the one part of a tab
+// that can carry a color, and it is all that a pinned tab shows.
+const UNREAD_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFAUlEQVR42s1XTWxUVRT+zrn3TeeHdmrbqUWJFDaasSEaEIgYSAiEAAGF2JAQWagQ3JhA4gY3hBUbE0lYGpQEkRhMlBAhKDFCxLRAoiE4URdYDNragTqdzl/n3XOPi5maFovS0khP8hbv3XvP991z3vkDpiTdZjEWB/dara11m6lopPvcxwD8+A9Ptj7fCNypv7XipzvfjvzXmekQGFtXAFjY8cx6Zl4KhMuZzQpV7wGAiNl7uQQEPd77yzcGvj872fkpEug2wEkBgM7UonXW8F42tM4JoVRyKJcFxHXtHojFDOJxC2sUXvScE/9uX/baubt13S8BA0Aea3yqNRJr+CBieVMlVBSLoTY3GXlheYKefS7BvlyzMMcY310p+m96iprLi0kkAooGhKrzp6vl0Vd/H/nxzpjO+yFgAMj8tq4N1tpjRGgZKTjtaLf+tVdazfaXH0FbygJJA0jdsoaAYcHtrMNHn/yJ9z+8IwODjhvnWFLFkHNux83b189MRoImAdcn2p7eEATBZ96rGSk49+LGpH3n4ONoTgVAyUNDhchEtxpDoICAOCOXDfHWvt9w6vNh1zjHWmaSMAxf+vX2D2fqmDIZAQaAuXPnRmOayqpS3DmRI4fnm7Xrm4BRhav4GtA9HKcKiChslIEGwpdn83j9zZtirTFEWipTNtXf31+pb/d/g44j46M+dYKJYyMFJ0cPzzdrtzRD8gINFdbeG7wWDYC1VLNQXrB2SzOOHp5vRgpOmDgW9akTdWCacOvuWvLwnW1dqwJrN+cLzm/dmDSr1zfBDTow/zvwZESYCW7QYfX6JmzdmDT5gvOBtZs727pWAfB1zAkWUDJ8YLTqtaPd6qGD86CjCkOYEvh4EoYAHVUcOjgPHe1WR6teyfCB8XnBADAZZGRhR9eGwNq3c/nQ730jZVesbYKMCIyZBvo4ElJVRNoswoLwFxfyvjERLEgm2q5cKnz9MwDDaaRN7QeipU5Im5NGdnS3gEr+gcAnREfJY0d3C5qTRpyQqtJSAEgjbTiDjEsjHTEGy4olRyuXJcyclIUPdVqmn8wKPlTMSVmsXJYwxZIjY7AsjXQkg4xjAL7aUo0y0ZpyRbB8SYKDJMM7xUyJd4ogyVi+JMHlioCJ1lRbqlEAnmuJzCiAIhFQKvtamiDMnNRTT6nsx6xarGNOiIKHIgwAokIAEqpAPMb1hDyDKFqLt3iMoTW9iTomGABHhiIVr3o+FjXouVr04bAH25nzAVtCOOzRc7XoY1EDr3o+MhSpAGBOI20zyFRF0JuIW73YW5RC1oEDGmP7YJdXgANCIetwsbcoibhVEfRmkKmmkbacQUZq4aKXrVHKDYs5dnIIGud/VLzpiIhC44xjJ4eQGxZjjRKRXgaADDLCAKQb3ebGwPUzoZMLjYmAjxwfcpWsg4ky1D/A7T1gooxK1uHI8SHXmAg4dHLhxsD1M/VaIBOqoYrf3xBhGhh0tGffLVADQRTTcoVqrV+hBsKefbcwMOioIcKk4vePD3K6uxNa8OiiU4Z5Uy4f+o/f6zSrtzRDBsMpVURVwHuFaQ/w1ac5bNvVJ81NAYv3p3/549qL4zujWdWQeADU399fcU62MZNYa8z2XX1u5+6byBUFtsWC6tHhnE54VAEKCLbFIlcU7Nx9E9t39TlrjWEmcU621cFp/Lww65rSWdGWz4rBZDaMZv/PcIqHPZ7/Bf+L9WpmZdc3AAAAAElFTkSuQmCC';
+const iconOriginals = new Map();
 let unreadMarked = false;
 let titleObserver = null;
 
@@ -194,20 +198,34 @@ function titleTextNode() {
   return node?.nodeType === 3 ? node : null;
 }
 
+function iconLinks() {
+  return [...document.querySelectorAll('head > link[rel~="icon"]')];
+}
+
 function applyUnreadMark() {
   const node = titleTextNode();
   if (node && !node.nodeValue.startsWith(UNREAD_MARK)) node.nodeValue = UNREAD_MARK + node.nodeValue;
+  // Swap only the href and type attributes of the existing icon links, and
+  // keep the originals so the clear can put them back.
+  for (const link of iconLinks()) {
+    if (link.getAttribute('href') === UNREAD_ICON) continue;
+    if (!iconOriginals.has(link)) iconOriginals.set(link, { href: link.getAttribute('href'), type: link.getAttribute('type') });
+    link.setAttribute('href', UNREAD_ICON);
+    if (link.hasAttribute('type')) link.setAttribute('type', 'image/png');
+  }
 }
 
 function markUnreadTitle() {
-  if (!titleTextNode()) return;
+  if (!titleTextNode() && !iconLinks().length) return;
   applyUnreadMark();
   unreadMarked = true;
   if (titleObserver) return;
-  // ChatGPT rewrites the title when a conversation gets a name. Put the mark back.
-  // The prefix check stops our own change from causing a loop.
+  // ChatGPT rewrites the title when a conversation gets a name, and can reset
+  // the icon link. Put the mark back. The checks in applyUnreadMark stop our
+  // own changes from causing a loop.
   titleObserver = new MutationObserver(() => { if (unreadMarked) applyUnreadMark(); });
-  titleObserver.observe(document.head, { childList: true, subtree: true, characterData: true });
+  titleObserver.observe(document.head, { childList: true, subtree: true, characterData: true,
+    attributes: true, attributeFilter: ['href'] });
 }
 
 function clearUnreadTitle() {
@@ -216,6 +234,13 @@ function clearUnreadTitle() {
   titleObserver = null;
   const node = titleTextNode();
   if (node?.nodeValue.startsWith(UNREAD_MARK)) node.nodeValue = node.nodeValue.slice(UNREAD_MARK.length);
+  for (const [link, original] of iconOriginals) {
+    if (link.getAttribute('href') !== UNREAD_ICON) continue;
+    if (typeof original.href === 'string') link.setAttribute('href', original.href);
+    if (typeof original.type === 'string') link.setAttribute('type', original.type);
+    else link.removeAttribute('type');
+  }
+  iconOriginals.clear();
 }
 
 function onVisibilityChange() {

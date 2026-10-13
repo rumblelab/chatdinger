@@ -39,11 +39,14 @@ a:hover { text-decoration: underline; }
 .tabbtn { min-height: 33px; padding: 0 0 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
 .tabbtn[aria-selected="true"] { border-bottom-color: var(--yellow); color: var(--yellow); }
 .tabbtn:hover { color: var(--text); }
-.content { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line) var(--paper); }
-.content::-webkit-scrollbar { width: 5px; }
-.content::-webkit-scrollbar-track { background: var(--paper); }
-.content::-webkit-scrollbar-thumb { min-height: 36px; border-radius: 4px; background: var(--line); }
-.content::-webkit-scrollbar-corner { background: var(--paper); }
+/* The scrollbar stays out of sight until the pointer is over the content. */
+.content { flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.content:hover { scrollbar-color: var(--line) transparent; }
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb { min-height: 36px; border-radius: 4px; background: transparent; }
+.content:hover::-webkit-scrollbar-thumb { background: var(--line); }
+.content::-webkit-scrollbar-corner { background: transparent; }
 .footer { flex: 0 0 auto; padding-top: 13px; margin-top: 8px; border-top: 1px solid var(--line); }
 .links { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 10px; }
 #review-link.review-unread {

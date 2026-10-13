@@ -6,9 +6,11 @@ const { JSDOM } = require('jsdom');
 
 const MARK = '● ';
 
-async function harness(t, { title = '<title>ChatGPT</title>', visible = false, focused = false,
+const ICON_PREFIX = 'data:image/png;base64,';
+
+async function harness(t, { title = '<title>ChatGPT</title>', icon = '', visible = false, focused = false,
   settings = {}, sound = 'ok' } = {}) {
-  const dom = new JSDOM(`<!doctype html><html><head>${title}</head><body><main><form data-mobile-composer>
+  const dom = new JSDOM(`<!doctype html><html><head>${title}${icon}</head><body><main><form data-mobile-composer>
     <textarea id="mobile-composer-prompt">Unsent draft</textarea>
     <div data-composer-trailing><button data-composer-submit aria-label="Send message"></button></div>
     </form></main></body></html>`, { url: 'https://chatgpt.com/', runScripts: 'outside-only' });
@@ -71,6 +73,9 @@ async function harness(t, { title = '<title>ChatGPT</title>', visible = false, f
   function assertOnlyTitleText() {
     mutations.push(...observer.takeRecords());
     for (const record of mutations) {
+      // The favicon swap may change only href and type on an existing icon link.
+      if (record.type === 'attributes' && record.target.matches?.('head > link[rel~="icon"]')
+        && ['href', 'type'].includes(record.attributeName)) continue;
       assert.equal(record.type, 'characterData', 'The extension must not add, remove, or change other nodes.');
       assert.equal(record.target, textNode);
     }
@@ -84,6 +89,7 @@ async function harness(t, { title = '<title>ChatGPT</title>', visible = false, f
   await flush();
   t.after(() => { observer.disconnect(); window.__chatDingerContentInstance?.dispose(); window.close(); });
   return { window, document, messages, textNode, view, flush, advance, complete, show, ownPageChange,
+    icon: () => document.querySelector('head > link[rel~="icon"]'),
     assertOnlyTitleText, storage: values => storageListener(window.JSON.parse(JSON.stringify(values)), 'local') };
 }
 
@@ -182,5 +188,51 @@ test('a visible tab in an unfocused window gets the mark', async t => {
   const h = await harness(t, { visible: true, focused: false });
   await h.complete();
   assert.equal(h.textNode.nodeValue, `${MARK}ChatGPT`);
+  h.assertOnlyTitleText();
+});
+
+const SITE_ICON = '<link rel="icon" href="https://chatgpt.com/favicon.ico" type="image/x-icon">';
+
+test('a hidden tab swaps the favicon for a yellow dot and the clear restores it', async t => {
+  const h = await harness(t, { icon: SITE_ICON });
+  const link = h.icon();
+  await h.complete();
+  assert.ok(link.getAttribute('href').startsWith(ICON_PREFIX));
+  assert.equal(link.getAttribute('type'), 'image/png');
+  assert.equal(h.icon(), link);
+  h.show();
+  h.document.dispatchEvent(new h.window.Event('visibilitychange'));
+  assert.equal(link.getAttribute('href'), 'https://chatgpt.com/favicon.ico');
+  assert.equal(link.getAttribute('type'), 'image/x-icon');
+  assert.equal(h.textNode.nodeValue, 'ChatGPT');
+  h.assertOnlyTitleText();
+});
+
+test('a site favicon reset while unread is put back', async t => {
+  const h = await harness(t, { icon: SITE_ICON });
+  await h.complete();
+  const link = h.icon();
+  link.setAttribute('href', 'https://chatgpt.com/favicon-v2.ico');
+  await h.flush();
+  assert.ok(link.getAttribute('href').startsWith(ICON_PREFIX));
+  h.window.dispatchEvent(new h.window.Event('focus'));
+  assert.equal(link.getAttribute('href'), 'https://chatgpt.com/favicon.ico');
+  h.assertOnlyTitleText();
+});
+
+test('a page with a favicon but no title text still marks the favicon', async t => {
+  const h = await harness(t, { title: '', icon: SITE_ICON });
+  await h.complete();
+  assert.ok(h.icon().getAttribute('href').startsWith(ICON_PREFIX));
+  assert.equal(h.document.querySelector('head > title'), null);
+  h.assertOnlyTitleText();
+});
+
+test('dispose restores the favicon together with the title', async t => {
+  const h = await harness(t, { icon: SITE_ICON });
+  await h.complete();
+  h.window.__chatDingerContentInstance.dispose();
+  assert.equal(h.icon().getAttribute('href'), 'https://chatgpt.com/favicon.ico');
+  assert.equal(h.textNode.nodeValue, 'ChatGPT');
   h.assertOnlyTitleText();
 });
