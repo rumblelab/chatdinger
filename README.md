@@ -4,9 +4,11 @@ Chat Dinger gives you a sound alert when ChatGPT finishes a response or image. S
 
 [Install Chat Dinger from the Chrome Web Store](https://chromewebstore.google.com/detail/chat-dinger-chatgpt-notif/kkpdpkhnioiapldpimpdlleonejkkddb).
 
+Read the help guides at [chatdinger.com/help](https://chatdinger.com/help/).
+
 ## Features
 
-- Plays one of nine sounds when a response ends.
+- Plays one of ten sounds when a response ends.
 - Works when the ChatGPT tab is hidden.
 - Starts in existing ChatGPT tabs after installation or an extension update, without a page refresh.
 - Opens a sound setup page on the first install, with a playback test and ChatGPT status.
